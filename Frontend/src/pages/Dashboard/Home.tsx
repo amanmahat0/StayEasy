@@ -1,0 +1,184 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  MapPin,
+  Heart,
+  SlidersHorizontal,
+  Grid,
+  List,
+  Calendar,
+  Star,
+  ShieldCheck,
+} from "lucide-react";
+
+import PublicNavbar from "../../components/Navbar/PublicNavbar";
+import Footer from "../../components/Footer";
+
+const MOCK_PROPERTIES = [
+  { id: 1, title: "Modern 2BHK", location: "Thamel, Kathmandu", rating: 4.8, reviews: 24, price: 25000, type: "FLAT", status: "Available", verified: true, image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=600&auto=format&fit=crop" },
+  { id: 2, title: "Cozy Single Room near", location: "Patan, Lalitpur", rating: 4.6, reviews: 18, price: 8000, type: "ROOM", status: "Available", verified: true, image: "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=600&auto=format&fit=crop" },
+  { id: 3, title: "Commercial Land in", location: "Bhaktapur Municipality", rating: 4.5, reviews: 8, price: 150000, type: "LAND", status: "Available", verified: true, image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=600&auto=format&fit=crop" },
+  { id: 4, title: "Luxury 3BHK Penthouse", location: "Durbar Marg, Kathmandu", rating: 5.0, reviews: 31, price: 65000, type: "FLAT", status: "Booked", verified: true, image: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?q=80&w=600&auto=format&fit=crop" },
+  { id: 5, title: "Shared Room in", location: "Baneshwor, Kathmandu", rating: 4.3, reviews: 12, price: 5000, type: "ROOM", status: "Available", verified: true, image: "https://images.unsplash.com/photo-1555854817-5b2247a8175f?q=80&w=600&auto=format&fit=crop" },
+  { id: 6, title: "Agricultural Land in", location: "Chitwan District", rating: 4.7, reviews: 5, price: 80, type: "LAND", status: "Available", verified: true, image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=600&auto=format&fit=crop" },
+];
+
+export default function Home() {
+  const navigate = useNavigate();
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [selectedType, setSelectedType] = useState("All");
+
+  const filteredProperties = MOCK_PROPERTIES.filter((property) => {
+    if (selectedType === "All") return true;
+    return property.type === selectedType.toUpperCase();
+  });
+
+  return (
+    <div className="min-h-screen bg-[#F9FAFB] font-inter">
+      <PublicNavbar />
+
+      <main className="max-w-[1440px] mx-auto px-6 py-10">
+        <div className="mb-8">
+          <h1 className="text-4xl font-black text-gray-900 mb-2">Available Properties</h1>
+          <p className="text-gray-500 font-medium">{filteredProperties.length} properties found</p>
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-10">
+          {/* Filter Sidebar */}
+          <aside className="w-full lg:w-72 shrink-0">
+            <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm sticky top-24">
+              <div className="flex items-center gap-2 mb-8 text-lg font-bold text-gray-800">
+                <SlidersHorizontal size={18} className="text-[#A989C8]" />
+                Filters
+              </div>
+
+              <div className="mb-8">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">Property Type</label>
+                {["All", "Room", "Flat", "Land"].map((type) => (
+                  <label key={type} className="flex items-center gap-3 mb-3 cursor-pointer group">
+                    <input 
+                      type="radio" 
+                      name="type" 
+                      checked={selectedType === type}
+                      onChange={() => setSelectedType(type)}
+                      className="w-4 h-4 accent-[#A989C8] cursor-pointer" 
+                    />
+                    <span className={`text-sm font-medium transition ${selectedType === type ? "text-[#A989C8]" : "text-gray-500"}`}>
+                      {type}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="mb-8">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">Price Range (NPR/month)</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <input placeholder="Min price" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-xs outline-none" />
+                  <input placeholder="Max price" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-xs outline-none" />
+                </div>
+              </div>
+
+              <div className="mb-8">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">Location</label>
+                <input placeholder="Search location..." className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-xs outline-none" />
+              </div>
+
+              <div className="mb-8">
+                <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">Availability</label>
+                <input className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-xs outline-none" type="date" />
+              </div>
+
+              <label className="flex items-center gap-3 mb-8 cursor-pointer">
+                <input type="checkbox" className="w-4 h-4 accent-[#A989C8]" />
+                <span className="text-xs font-bold text-gray-600">Verified properties only</span>
+              </label>
+
+              <button 
+                onClick={() => setSelectedType("All")}
+                className="w-full py-4 text-xs font-black text-gray-400 border border-gray-100 rounded-xl hover:bg-gray-50 transition uppercase tracking-widest"
+              >
+                Reset Filters
+              </button>
+            </div>
+          </aside>
+
+          {/* Listings Area */}
+          <div className="flex-1">
+            <div className="flex justify-end gap-2 mb-8 items-center">
+              <button onClick={() => setViewMode("grid")} className={`p-2.5 rounded-xl transition ${viewMode === 'grid' ? 'bg-[#A989C8] text-white shadow-lg shadow-purple-100' : 'bg-white border text-gray-400'}`}><Grid size={20} /></button>
+              <button onClick={() => setViewMode("list")} className={`p-2.5 rounded-xl transition ${viewMode === 'list' ? 'bg-[#A989C8] text-white shadow-lg shadow-purple-100' : 'bg-white border text-gray-400'}`}><List size={20} /></button>
+            </div>
+
+            <div className={`grid gap-8 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
+              {filteredProperties.map((property) => (
+                <div key={property.id} className="group bg-white rounded-[32px] overflow-hidden border border-gray-100 shadow-sm hover:shadow-2xl transition-all duration-500">
+                  {/* Image Container */}
+                  <div className="relative h-64 overflow-hidden">
+                    <img src={property.image} alt={property.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                    
+                    {/* Top Badges */}
+                    <div className="absolute top-4 left-4 flex flex-col gap-2">
+                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${property.status === 'Available' ? 'bg-emerald-500' : 'bg-orange-400'}`}>
+                        {property.status}
+                      </span>
+                      {property.verified && (
+                        <span className="px-4 py-1.5 bg-[#A989C8]/90 backdrop-blur-sm rounded-full text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-1">
+                          <ShieldCheck size={12} /> Verified
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Heart Icon */}
+                    <button className="absolute top-4 right-4 p-2.5 bg-white/90 backdrop-blur-sm rounded-full text-gray-400 hover:text-red-500 transition-colors shadow-sm">
+                      <Heart size={18} />
+                    </button>
+
+                    {/* Property Type Badge */}
+                    <div className="absolute bottom-4 left-4">
+                      <span className="bg-white/90 backdrop-blur-sm text-gray-800 text-[10px] font-black px-4 py-1.5 rounded-lg uppercase tracking-widest shadow-sm">
+                        {property.type}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-8">
+                    <h3 className="font-bold text-xl text-gray-800 tracking-tight mb-1">{property.title}</h3>
+                    <div className="flex items-center gap-1 text-gray-400 text-xs mb-6">
+                      <MapPin size={12} /> {property.location}
+                    </div>
+
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center gap-1">
+                            <Star size={14} className="fill-yellow-400 text-yellow-400" />
+                            <span className="font-bold text-sm text-gray-800">{property.rating} <span className="text-gray-400 font-medium">({property.reviews})</span></span>
+                        </div>
+                        <span className="text-gray-400 text-[10px] font-bold flex items-center gap-1.5"><Calendar size={14}/> View Calendar</span>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-6 border-t border-gray-50">
+                      <div>
+                        <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Starting from</span>
+                        <div className="flex items-baseline gap-1">
+                            <span className="text-[#A989C8] font-black text-2xl">NPR {property.price.toLocaleString()}</span>
+                            <span className="text-gray-400 text-xs font-bold">/month</span>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => navigate(`/property/${property.id}`)}
+                        className="bg-[#A989C8] hover:bg-[#9370DB] text-white px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-purple-50 transition-all active:scale-95"
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </main>
+      <Footer />
+    </div>
+  );
+}
