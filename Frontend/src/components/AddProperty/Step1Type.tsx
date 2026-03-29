@@ -9,7 +9,7 @@ interface Props {
 const Step1Type: React.FC<Props> = ({ formData, setFormData }) => {
   const types = [
     { id: 'room', label: 'Room', desc: 'Single or shared room', icon: Home },
-    { id: 'flat', label: 'Flat/Apartment', desc: '1BHK, 2BHK, 3BHK+', icon: Building2 },
+    { id: 'apartment', label: 'Flat/Apartment', desc: '1BHK, 2BHK, 3BHK+', icon: Building2 },
     { id: 'house', label: 'House', desc: 'Independent house', icon: Building },
     { id: 'land', label: 'Land', desc: 'Commercial/Residential', icon: Landmark },
   ];

@@ -96,6 +96,7 @@ class Property(models.Model):
         ('room', 'Room'),
         ('apartment', 'Apartment'),
         ('house', 'House'),
+        ('land', 'Land'),
     )
 
     owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name="properties")
@@ -130,3 +131,40 @@ class PropertyImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.property.title}"
+
+
+# ============================================================
+# BOOKING MODEL
+# Stores property bookings/reservations
+# ============================================================
+class Booking(models.Model):
+
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
+    )
+
+    # Linked user (tenant) and property
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="bookings")
+    property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name="bookings")
+
+    # Booking dates
+    check_in = models.DateField()
+    check_out = models.DateField()
+
+    # Total price
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    # Status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.property.title} ({self.status})"

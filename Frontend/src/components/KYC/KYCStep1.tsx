@@ -1,7 +1,13 @@
 import { User, Info } from "lucide-react";
-import { KYCFooter } from "./KYCFooter"; // make sure the path is correct
+import { KYCFooter } from "./KYCFooter";
+import type { KYCFormData } from "./KYCContainer";
 
-export default function KYCStep1() {
+interface KYCStep1Props {
+  formData: KYCFormData;
+  onUpdate: (data: Partial<KYCFormData>) => void;
+}
+
+export default function KYCStep1({ formData, onUpdate }: KYCStep1Props) {
   return (
     <div className="space-y-6">
       {/* Personal Info Form */}
@@ -14,6 +20,8 @@ export default function KYCStep1() {
           <input
             type="text"
             placeholder="Enter your full name"
+            value={formData.full_name}
+            onChange={(e) => onUpdate({ full_name: e.target.value })}
             className="w-full pl-12 pr-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#A87DC2]/20 focus:border-[#A87DC2] transition-all"
           />
         </div>
@@ -21,22 +29,27 @@ export default function KYCStep1() {
 
       <div>
         <label className="block text-sm font-bold text-gray-700 mb-2">
-          Date of Birth <span className="text-red-500">*</span>
+          Phone Number <span className="text-red-500">*</span>
         </label>
         <input
-          type="date"
-          className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#A87DC2]/20 focus:border-[#A87DC2]"
+          type="tel"
+          placeholder="Enter your phone number"
+          value={formData.phone_number}
+          onChange={(e) => onUpdate({ phone_number: e.target.value })}
+          className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#A87DC2]/20 focus:border-[#A87DC2] transition-all"
         />
       </div>
 
       <div>
         <label className="block text-sm font-bold text-gray-700 mb-2">
-          Nationality <span className="text-red-500">*</span>
+          Citizenship Number <span className="text-red-500">*</span>
         </label>
         <input
           type="text"
-          placeholder="Enter your nationality"
-          className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#A87DC2]/20 focus:border-[#A87DC2]"
+          placeholder="Enter your citizenship/ID number"
+          value={formData.citizenship_number}
+          onChange={(e) => onUpdate({ citizenship_number: e.target.value })}
+          className="w-full px-4 py-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#A87DC2]/20 focus:border-[#A87DC2] transition-all"
         />
       </div>
 

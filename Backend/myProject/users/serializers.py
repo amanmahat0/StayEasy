@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from .models import Profile, KYC, Property, PropertyImage
+from .models import Profile, KYC, Property, PropertyImage, Booking
 
 
 # =====================================================
@@ -123,6 +123,63 @@ class KYCStatusSerializer(serializers.ModelSerializer):
         fields = ["status", "submitted_at"]
 
 
+class KYCListSerializer(serializers.ModelSerializer):
+    """Serializer for admin to view all KYC requests with user info"""
+    user_info = serializers.SerializerMethodField()
+    verified_by_info = serializers.SerializerMethodField()
+
+    class Meta:
+        model = KYC
+        fields = [
+            "id",
+            "user_info",
+            "full_name",
+            "phone_number",
+            "citizenship_number",
+            "document_image",
+            "status",
+            "submitted_at",
+            "verified_by_info",
+            "verified_at",
+        ]
+        read_only_fields = ["submitted_at", "verified_at", "verified_by_info"]
+
+    def get_user_info(self, obj):
+        """Return user details"""
+        return {
+            "id": obj.user.id,
+            "username": obj.user.username,
+            "email": obj.user.email,
+            "first_name": obj.user.first_name,
+            "last_name": obj.user.last_name,
+            "user_type": obj.user.profile.user_type,
+        }
+
+    def get_verified_by_info(self, obj):
+        """Return admin who verified this KYC"""
+        if obj.verified_by:
+            return {
+                "id": obj.verified_by.id,
+                "username": obj.verified_by.username,
+                "email": obj.verified_by.email,
+            }
+        return None
+
+
+class KYCUpdateStatusSerializer(serializers.ModelSerializer):
+    """Serializer for admin to update KYC status"""
+
+    class Meta:
+        model = KYC
+        fields = ["status"]
+
+    def validate_status(self, value):
+        """Validate status is one of the allowed choices"""
+        if value not in ['pending', 'approved', 'rejected']:
+            raise serializers.ValidationError("Invalid status. Must be 'pending', 'approved', or 'rejected'")
+        return value
+
+
 # =====================================================
 # PROPERTY IMAGE SERIALIZER
 # =====================================================
@@ -149,10 +206,8 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         images = validated_data.pop("images", [])
-        user = self.context["request"].user
 
         property_instance = Property.objects.create(
-            owner=user,
             **validated_data
         )
 
@@ -175,3 +230,71 @@ class PropertySerializer(serializers.ModelSerializer):
         model = Property
         fields = "__all__"
         read_only_fields = ["owner", "created_at"]
+
+
+# =====================================================
+# BOOKING SERIALIZERS
+# =====================================================
+class BookingSerializer(serializers.ModelSerializer):
+    """Basic booking serializer for create/update"""
+    
+    class Meta:
+        model = Booking
+        fields = ["id", "property", "check_in", "check_out", "total_price", "status"]
+        read_only_fields = ["id", "status"]
+
+
+class BookingDetailSerializer(serializers.ModelSerializer):
+    """Detailed booking serializer with property and user info"""
+    property_info = serializers.SerializerMethodField()
+    user_info = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Booking
+        fields = [
+            "id",
+            "user_info",
+            "property_info",
+            "check_in",
+            "check_out",
+            "total_price",
+            "status",
+            "created_at",
+            "updated_at"
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def get_property_info(self, obj):
+        """Return property details"""
+        return {
+            "id": obj.property.id,
+            "title": obj.property.title,
+            "address": obj.property.address,
+            "city": obj.property.city,
+            "price": obj.property.price,
+            "property_type": obj.property.property_type,
+        }
+
+    def get_user_info(self, obj):
+        """Return user (tenant) details"""
+        return {
+            "id": obj.user.id,
+            "username": obj.user.username,
+            "email": obj.user.email,
+            "first_name": obj.user.first_name,
+            "last_name": obj.user.last_name,
+        }
+
+
+class BookingCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating bookings"""
+
+    class Meta:
+        model = Booking
+        fields = ["property", "check_in", "check_out", "total_price"]
+
+    def validate(self, attrs):
+        """Validate booking dates"""
+        if attrs["check_in"] >= attrs["check_out"]:
+            raise serializers.ValidationError("Check-out date must be after check-in date")
+        return attrs

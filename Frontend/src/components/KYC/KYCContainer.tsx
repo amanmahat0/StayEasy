@@ -3,6 +3,15 @@ import { useNavigate } from "react-router-dom";
 import KYCStep1 from "./KYCStep1";
 import KYCStep2 from "./KYCStep2";
 import KYCStep3 from "./KYCStep3";
+import axios from "axios";
+
+// ✅ KYC Form Data Type
+export interface KYCFormData {
+  full_name: string;
+  phone_number: string;
+  citizenship_number: string;
+  document_image: File | null;
+}
 
 function KYCProgress({ step }: { step: number }) {
   return (
@@ -22,7 +31,7 @@ function KYCProgress({ step }: { step: number }) {
       <div className="flex justify-between text-sm text-gray-500">
         <span className={step >= 1 ? "text-[#A87DC2]" : ""}>Personal Info</span>
         <span className={step >= 2 ? "text-[#A87DC2]" : ""}>ID Verification</span>
-        <span className={step >= 3 ? "text-[#A87DC2]" : ""}>Selfie</span>
+        <span className={step >= 3 ? "text-[#A87DC2]" : ""}>Document</span>
       </div>
     </div>
   );
@@ -31,9 +40,20 @@ function KYCProgress({ step }: { step: number }) {
 export default function KYCContainer() {
   const [step, setStep] = useState(1);
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // ✅ KYC Form State
+  const [formData, setFormData] = useState<KYCFormData>({
+    full_name: "",
+    phone_number: "",
+    citizenship_number: "",
+    document_image: null,
+  });
 
   /* 🔹 STEP NAVIGATION */
   const nextStep = () => {
+    setError(null);
     if (step < 3) setStep(step + 1);
     else handleSubmit();
   };
@@ -42,17 +62,72 @@ export default function KYCContainer() {
     if (step > 1) setStep(step - 1);
   };
 
+  /* 🔹 UPDATE FORM DATA */
+  const updateFormData = (data: Partial<KYCFormData>) => {
+    setFormData((prev) => ({ ...prev, ...data }));
+  };
+
   /* 🔹 SAVE & EXIT */
   const saveAndExit = () => {
-    // later: send draft data to backend
     navigate("/dashboard");
   };
 
-  /* 🔹 FINAL SUBMIT */
-  const handleSubmit = () => {
-    // later: send full KYC data to Django
-    console.log("KYC Submitted");
-    navigate("/dashboard");
+  /* 🔹 SUBMIT TO DJANGO BACKEND */
+  const handleSubmit = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      // ✅ Validate form data
+      if (!formData.full_name.trim()) {
+        throw new Error("Full name is required");
+      }
+      if (!formData.phone_number.trim()) {
+        throw new Error("Phone number is required");
+      }
+      if (!formData.citizenship_number.trim()) {
+        throw new Error("Citizenship number is required");
+      }
+      if (!formData.document_image) {
+        throw new Error("Document image is required");
+      }
+
+      // ✅ Create FormData for multipart/form-data
+      const submitData = new FormData();
+      submitData.append("full_name", formData.full_name);
+      submitData.append("phone_number", formData.phone_number);
+      submitData.append("citizenship_number", formData.citizenship_number);
+      submitData.append("document_image", formData.document_image);
+
+      // ✅ Get JWT token from localStorage
+      const token = localStorage.getItem("access");
+      if (!token) {
+        throw new Error("Authentication token not found. Please login again.");
+      }
+
+      // ✅ Send to Django API
+      const response = await axios.post(
+        "http://localhost:8000/api/users/kyc/submit/",
+        submitData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
+
+      // ✅ Success - redirect to dashboard
+      console.log("KYC Submitted Successfully:", response.data);
+      alert("KYC submitted successfully!");
+      navigate("/dashboard");
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.message || "Failed to submit KYC";
+      setError(errorMsg);
+      console.error("KYC Submission Error:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -60,10 +135,23 @@ export default function KYCContainer() {
       <div className="w-full max-w-xl">
         <KYCProgress step={step} />
 
+        {/* ✅ ERROR MESSAGE */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+            ⚠️ {error}
+          </div>
+        )}
+
         <div className="bg-white rounded-2xl p-6 shadow-sm space-y-6">
-          {step === 1 && <KYCStep1 />}
-          {step === 2 && <KYCStep2 />}
-          {step === 3 && <KYCStep3 />}
+          {step === 1 && (
+            <KYCStep1 formData={formData} onUpdate={updateFormData} />
+          )}
+          {step === 2 && (
+            <KYCStep2 formData={formData} onUpdate={updateFormData} />
+          )}
+          {step === 3 && (
+            <KYCStep3 formData={formData} onUpdate={updateFormData} />
+          )}
 
           {/* 🔘 BUTTONS */}
           <div className="flex justify-between mt-6">
@@ -71,7 +159,7 @@ export default function KYCContainer() {
             <button
               onClick={prevStep}
               disabled={step === 1}
-              className="px-6 py-2 rounded-xl border text-gray-600 disabled:opacity-50"
+              className="px-6 py-2 rounded-xl border text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Back
             </button>
@@ -81,16 +169,22 @@ export default function KYCContainer() {
               <button
                 onClick={saveAndExit}
                 className="px-6 py-2 rounded-xl border bg-white text-gray-600 hover:bg-gray-100"
+                disabled={loading}
               >
-                Save & Continue Later
+                Cancel
               </button>
 
               {/* CONTINUE / SUBMIT */}
               <button
                 onClick={nextStep}
-                className="px-6 py-2 rounded-xl bg-[#A87DC2] text-white hover:bg-[#8A64B2]"
+                disabled={loading}
+                className="px-6 py-2 rounded-xl bg-[#A87DC2] text-white hover:bg-[#8A64B2] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {step === 3 ? "Submit" : "Continue"}
+                {loading
+                  ? "Submitting..."
+                  : step === 3
+                  ? "Submit"
+                  : "Continue"}
               </button>
             </div>
           </div>

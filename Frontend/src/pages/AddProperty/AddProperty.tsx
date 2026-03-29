@@ -41,7 +41,7 @@ const AddProperty = () => {
 
   // Form State
   const [formData, setFormData] = useState<FormDataType>({
-    propertyType: 'flat',
+    propertyType: 'apartment',
     title: '', description: '', province: '', district: '', city: '', area: '', fullAddress: '',
     bedrooms: '', bathrooms: '', areaSize: '', floorNumber: '', totalFloors: '', furnishing: '',
     amenities: [], availableFrom: '', leasePeriod: '',
@@ -63,23 +63,32 @@ const AddProperty = () => {
   // FULL SUBMIT HANDLER (TYPE SAFE)
   // -----------------------------
   const handleSubmit = async () => {
-    const token = localStorage.getItem('accessToken'); // JWT from storage
+    const token = localStorage.getItem('access'); // JWT from storage (correct key)
+    
+    if (!token) {
+      alert('You must be logged in to add a property');
+      navigate('/login');
+      return;
+    }
+
     const formPayload = new FormData();
 
-    // Append all fields to FormData
-    (Object.entries(formData) as [keyof FormDataType, any][]).forEach(([key, value]) => {
-      if (key === "images" && Array.isArray(value)) {
-        value.forEach((file: File) => formPayload.append("images", file));
-      } else if (Array.isArray(value)) {
-        formPayload.append(key, JSON.stringify(value)); // amenities array
-      } else {
-        formPayload.append(key, value); // string values
-      }
+    // Map form fields to Django model fields
+    formPayload.append('property_type', formData.propertyType);
+    formPayload.append('title', formData.title);
+    formPayload.append('description', formData.description);
+    formPayload.append('address', formData.fullAddress || `${formData.city}, ${formData.district}`);
+    formPayload.append('city', formData.city);
+    formPayload.append('price', formData.monthlyRent);
+
+    // Append all image files
+    formData.images.forEach((file: File) => {
+      formPayload.append('images', file);
     });
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/properties/add/", {
-        method: "POST",
+      const response = await fetch('http://127.0.0.1:8000/api/users/property/add/', {
+        method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -89,15 +98,16 @@ const AddProperty = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error(data);
-        alert("Failed to add property: " + JSON.stringify(data));
-      } else {
-        alert("Property added successfully!");
-        navigate("/dashboard"); // redirect after success
+        console.error('Server error:', data);
+        alert('Failed to add property: ' + JSON.stringify(data.error || data));
+        return;
       }
-    } catch (err) {
-      console.error(err);
-      alert("An error occurred. Check console.");
+
+      alert('Property added successfully!');
+      navigate('/dashboard');
+    } catch (err: any) {
+      console.error('Request error:', err);
+      alert('An error occurred. Check console for details.');
     }
   };
 

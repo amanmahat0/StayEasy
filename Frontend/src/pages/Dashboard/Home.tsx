@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   MapPin,
@@ -7,31 +7,71 @@ import {
   Grid,
   List,
   Calendar,
-  Star,
-  ShieldCheck,
 } from "lucide-react";
 
 import PublicNavbar from "../../components/Navbar/PublicNavbar";
 import Footer from "../../components/Footer";
+import { getProperties } from "../../services/api";
 
-const MOCK_PROPERTIES = [
-  { id: 1, title: "Modern 2BHK", location: "Thamel, Kathmandu", rating: 4.8, reviews: 24, price: 25000, type: "FLAT", status: "Available", verified: true, image: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=600&auto=format&fit=crop" },
-  { id: 2, title: "Cozy Single Room near", location: "Patan, Lalitpur", rating: 4.6, reviews: 18, price: 8000, type: "ROOM", status: "Available", verified: true, image: "https://images.unsplash.com/photo-1513694203232-719a280e022f?q=80&w=600&auto=format&fit=crop" },
-  { id: 3, title: "Commercial Land in", location: "Bhaktapur Municipality", rating: 4.5, reviews: 8, price: 150000, type: "LAND", status: "Available", verified: true, image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=600&auto=format&fit=crop" },
-  { id: 4, title: "Luxury 3BHK Penthouse", location: "Durbar Marg, Kathmandu", rating: 5.0, reviews: 31, price: 65000, type: "FLAT", status: "Booked", verified: true, image: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?q=80&w=600&auto=format&fit=crop" },
-  { id: 5, title: "Shared Room in", location: "Baneshwor, Kathmandu", rating: 4.3, reviews: 12, price: 5000, type: "ROOM", status: "Available", verified: true, image: "https://images.unsplash.com/photo-1555854817-5b2247a8175f?q=80&w=600&auto=format&fit=crop" },
-  { id: 6, title: "Agricultural Land in", location: "Chitwan District", rating: 4.7, reviews: 5, price: 80, type: "LAND", status: "Available", verified: true, image: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?q=80&w=600&auto=format&fit=crop" },
-];
+interface PropertyData {
+  id: number;
+  title: string;
+  address: string;
+  city: string;
+  property_type: string;
+  price: number;
+  available: boolean;
+  owner: number;
+  created_at: string;
+  description: string;
+  images: Array<{
+    id: number;
+    image: string;
+  }>;
+}
 
 export default function Home() {
   const navigate = useNavigate();
+  const [properties, setProperties] = useState<PropertyData[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedType, setSelectedType] = useState("All");
 
-  const filteredProperties = MOCK_PROPERTIES.filter((property) => {
+  useEffect(() => {
+    fetchProperties();
+  }, []);
+
+  const fetchProperties = async () => {
+    try {
+      const data = await getProperties();
+      setProperties(data);
+    } catch (error) {
+      console.error("Failed to fetch properties:", error);
+      setProperties([]);
+    }
+  };
+
+  const filteredProperties = properties.filter((property) => {
     if (selectedType === "All") return true;
-    return property.type === selectedType.toUpperCase();
+    return property.property_type.toLowerCase() === selectedType.toLowerCase();
   });
+
+  const getPropertyTypeLabel = (type: string) => {
+    const typeMap: { [key: string]: string } = {
+      "room": "ROOM",
+      "apartment": "APARTMENT",
+      "house": "HOUSE",
+      "land": "LAND",
+    };
+    return typeMap[type.toLowerCase()] || type.toUpperCase();
+  };
+
+  const getPropertyImage = (property: PropertyData) => {
+    if (property.images && property.images.length > 0) {
+      return `http://127.0.0.1:8000${property.images[0].image}`;
+    }
+    // Fallback placeholder
+    return "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=600&auto=format&fit=crop";
+  };
 
   return (
     <div className="min-h-screen bg-[#F9FAFB] font-inter">
@@ -54,7 +94,7 @@ export default function Home() {
 
               <div className="mb-8">
                 <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">Property Type</label>
-                {["All", "Room", "Flat", "Land"].map((type) => (
+                {["All", "Room", "Apartment", "House", "Land"].map((type) => (
                   <label key={type} className="flex items-center gap-3 mb-3 cursor-pointer group">
                     <input 
                       type="radio" 
@@ -110,70 +150,74 @@ export default function Home() {
             </div>
 
             <div className={`grid gap-8 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
-              {filteredProperties.map((property) => (
-                <div key={property.id} className="group bg-white rounded-[32px] overflow-hidden border border-gray-100 shadow-sm hover:shadow-2xl transition-all duration-500">
-                  {/* Image Container */}
-                  <div className="relative h-64 overflow-hidden">
-                    <img src={property.image} alt={property.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                    
-                    {/* Top Badges */}
-                    <div className="absolute top-4 left-4 flex flex-col gap-2">
-                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${property.status === 'Available' ? 'bg-emerald-500' : 'bg-orange-400'}`}>
-                        {property.status}
-                      </span>
-                      {property.verified && (
-                        <span className="px-4 py-1.5 bg-[#A989C8]/90 backdrop-blur-sm rounded-full text-[10px] font-black uppercase tracking-widest text-white flex items-center gap-1">
-                          <ShieldCheck size={12} /> Verified
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Heart Icon */}
-                    <button className="absolute top-4 right-4 p-2.5 bg-white/90 backdrop-blur-sm rounded-full text-gray-400 hover:text-red-500 transition-colors shadow-sm">
-                      <Heart size={18} />
-                    </button>
-
-                    {/* Property Type Badge */}
-                    <div className="absolute bottom-4 left-4">
-                      <span className="bg-white/90 backdrop-blur-sm text-gray-800 text-[10px] font-black px-4 py-1.5 rounded-lg uppercase tracking-widest shadow-sm">
-                        {property.type}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-8">
-                    <h3 className="font-bold text-xl text-gray-800 tracking-tight mb-1">{property.title}</h3>
-                    <div className="flex items-center gap-1 text-gray-400 text-xs mb-6">
-                      <MapPin size={12} /> {property.location}
-                    </div>
-
-                    <div className="flex items-center justify-between mb-8">
-                        <div className="flex items-center gap-1">
-                            <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                            <span className="font-bold text-sm text-gray-800">{property.rating} <span className="text-gray-400 font-medium">({property.reviews})</span></span>
-                        </div>
-                        <span className="text-gray-400 text-[10px] font-bold flex items-center gap-1.5"><Calendar size={14}/> View Calendar</span>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-6 border-t border-gray-50">
-                      <div>
-                        <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Starting from</span>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-[#A989C8] font-black text-2xl">NPR {property.price.toLocaleString()}</span>
-                            <span className="text-gray-400 text-xs font-bold">/month</span>
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => navigate(`/property/${property.id}`)}
-                        className="bg-[#A989C8] hover:bg-[#9370DB] text-white px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-purple-50 transition-all active:scale-95"
-                      >
-                        View Details
-                      </button>
-                    </div>
-                  </div>
+              {filteredProperties.length === 0 ? (
+                <div className="col-span-full flex items-center justify-center py-12">
+                  <p className="text-gray-500">No properties found</p>
                 </div>
-              ))}
+              ) : (
+                filteredProperties.map((property) => (
+                  <div key={property.id} className="group bg-white rounded-[32px] overflow-hidden border border-gray-100 shadow-sm hover:shadow-2xl transition-all duration-500">
+                    {/* Image Container */}
+                    <div className="relative h-64 overflow-hidden">
+                      <img 
+                        src={getPropertyImage(property)} 
+                        alt={property.title} 
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                      />
+                      
+                      {/* Top Badges */}
+                      <div className="absolute top-4 left-4 flex flex-col gap-2">
+                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${property.available ? 'bg-emerald-500' : 'bg-orange-400'}`}>
+                          {property.available ? 'Available' : 'Booked'}
+                        </span>
+                      </div>
+
+                      {/* Heart Icon */}
+                      <button className="absolute top-4 right-4 p-2.5 bg-white/90 backdrop-blur-sm rounded-full text-gray-400 hover:text-red-500 transition-colors shadow-sm">
+                        <Heart size={18} />
+                      </button>
+
+                      {/* Property Type Badge */}
+                      <div className="absolute bottom-4 left-4">
+                        <span className="bg-white/90 backdrop-blur-sm text-gray-800 text-[10px] font-black px-4 py-1.5 rounded-lg uppercase tracking-widest shadow-sm">
+                          {getPropertyTypeLabel(property.property_type)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Content */}
+                    <div className="p-8">
+                      <h3 className="font-bold text-xl text-gray-800 tracking-tight mb-1">{property.title}</h3>
+                      <div className="flex items-center gap-1 text-gray-400 text-xs mb-6">
+                        <MapPin size={12} /> {property.city || property.address}
+                      </div>
+
+                      <div className="flex items-center justify-between mb-8">
+                          <div className="flex items-center gap-1">
+                              <span className="text-gray-600 text-sm font-bold">Property Type</span>
+                          </div>
+                          <span className="text-gray-400 text-[10px] font-bold flex items-center gap-1.5"><Calendar size={14}/> View Calendar</span>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-6 border-t border-gray-50">
+                        <div>
+                          <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Starting from</span>
+                          <div className="flex items-baseline gap-1">
+                              <span className="text-[#A989C8] font-black text-2xl">NPR {property.price.toLocaleString()}</span>
+                              <span className="text-gray-400 text-xs font-bold">/month</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => navigate(`/property/${property.id}`)}
+                          className="bg-[#A989C8] hover:bg-[#9370DB] text-white px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-purple-50 transition-all active:scale-95"
+                        >
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

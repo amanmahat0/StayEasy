@@ -48,7 +48,9 @@ const Login: React.FC = () => {
       login(userProfile);
 
       // 3️⃣ Navigate based on REAL backend role
-      if (userProfile.user_type === "tenant") {
+      if (userProfile.role === "admin") {
+        navigate("/admin");
+      } else if (userProfile.user_type === "tenant") {
         navigate("/home");
       } else if (userProfile.user_type === "owner") {
         navigate("/dashboard");
