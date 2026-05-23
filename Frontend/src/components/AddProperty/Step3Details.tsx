@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface Props {
   formData: any;
@@ -6,46 +6,168 @@ interface Props {
 }
 
 const Step3Details: React.FC<Props> = ({ formData, setFormData }) => {
-  const amenitiesList = ["Parking", "WiFi", "Water", "Electricity", "Balcony", "Garden"];
+  const [inputValue, setInputValue] = useState('');
 
-  const handleAmenityToggle = (amenity: string) => {
-    const current = formData.amenities || [];
-    const updated = current.includes(amenity)
-      ? current.filter((item: string) => item !== amenity)
-      : [...current, amenity];
-    setFormData({ ...formData, amenities: updated });
+  const amenities = [
+    'WiFi', 'Parking', 'Water Supply', 'Electricity', 'Security', 'AC', 'Balcony', 'Garden'
+  ];
+
+  const landFeatures = [
+    'Road Access', 'Boundary Wall', 'Drainage', 'Water Access', 'Electricity Nearby', 'Road Width', 'Flat Plot', 'Soil Suitable'
+  ];
+
+  const isLand = formData.propertyType === 'land';
+  const activeList = isLand ? landFeatures : amenities;
+
+  const handleToggle = (value: string) => {
+    const current = formData.features || [];
+
+    const updated = current.includes(value)
+      ? current.filter((i: string) => i !== value)
+      : [...current, value];
+
+    setFormData({ ...formData, features: updated });
+  };
+
+  const handleAddCustom = () => {
+    const value = inputValue.trim();
+    if (!value) return;
+
+    const current = formData.features || [];
+
+    if (!current.includes(value)) {
+      setFormData({
+        ...formData,
+        features: [...current, value]
+      });
+    }
+
+    setInputValue('');
+  };
+
+  const handleRemove = (value: string) => {
+    const updated = (formData.features || []).filter((i: string) => i !== value);
+    setFormData({ ...formData, features: updated });
   };
 
   const inputClass = "w-full p-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#A87DC2] outline-none";
 
+  const isSelected = (value: string) => (formData.features || []).includes(value);
+
   return (
     <div className="space-y-8">
+
+      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Property Details</h2>
-        <p className="text-gray-500">Specific property features</p>
+        <p className="text-gray-500">
+          {isLand ? 'Land features & infrastructure' : 'Property amenities & comfort features'}
+        </p>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        <input type="number" placeholder="Bedrooms" value={formData.bedrooms} onChange={(e) => setFormData({...formData, bedrooms: e.target.value})} className={inputClass} />
-        <input type="number" placeholder="Bathrooms" value={formData.bathrooms} onChange={(e) => setFormData({...formData, bathrooms: e.target.value})} className={inputClass} />
-        <input type="number" placeholder="Sq Ft" value={formData.areaSize} onChange={(e) => setFormData({...formData, areaSize: e.target.value})} className={inputClass} />
-      </div>
+      {/* Basic Inputs */}
+      {!isLand ? (
+        <div className="grid grid-cols-3 gap-6">
+          <input
+            type="number"
+            placeholder="Bedrooms"
+            value={formData.bedrooms || ''}
+            onChange={(e) => setFormData({ ...formData, bedrooms: e.target.value })}
+            className={inputClass}
+          />
+          <input
+            type="number"
+            placeholder="Bathrooms"
+            value={formData.bathrooms || ''}
+            onChange={(e) => setFormData({ ...formData, bathrooms: e.target.value })}
+            className={inputClass}
+          />
+          <input
+            type="number"
+            placeholder="Area (Sq Ft)"
+            value={formData.areaSize || ''}
+            onChange={(e) => setFormData({ ...formData, areaSize: e.target.value })}
+            className={inputClass}
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-6 items-center">
+          {/* Land Size - NUMBER ONLY */}
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              placeholder="Land Size"
+              value={formData.areaSize || ''}
+              onChange={(e) => setFormData({ ...formData, areaSize: e.target.value })}
+              className={inputClass}
+            />
+            <span className="text-gray-500 text-sm whitespace-nowrap">Sq Ft</span>
+          </div>
 
+          <input
+            type="text"
+            placeholder="Land Type"
+            value={formData.landType || ''}
+            onChange={(e) => setFormData({ ...formData, landType: e.target.value })}
+            className={inputClass}
+          />
+        </div>
+      )}
+
+      {/* Features Section */}
       <div>
-        <label className="block text-sm font-semibold text-gray-700 mb-4">Amenities</label>
-        <div className="flex flex-wrap gap-3">
-          {amenitiesList.map((amenity) => (
+        <label className="block text-sm font-semibold text-gray-700 mb-3">
+          {isLand ? 'Land Features' : 'Amenities'}
+        </label>
+
+        {/* Quick Select */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          {activeList.map((item) => (
             <button
-              key={amenity}
-              onClick={() => handleAmenityToggle(amenity)}
-              className={`px-6 py-2 rounded-full border text-sm font-medium transition-all
-                ${formData.amenities?.includes(amenity)
-                  ? 'bg-[#A87DC2]/10 border-[#A87DC2] text-[#A87DC2]'
-                  : 'bg-white border-gray-200 text-gray-600 hover:border-[#A87DC2]/50'
+              key={item}
+              type="button"
+              onClick={() => handleToggle(item)}
+              className={`px-4 py-2 rounded-full border text-sm transition-all
+                ${isSelected(item)
+                  ? 'bg-[#A87DC2] text-white border-[#A87DC2]'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-[#A87DC2] hover:text-[#A87DC2]'
                 }`}
             >
-              {amenity}
+              {item}
             </button>
+          ))}
+        </div>
+
+        {/* Custom Input */}
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder={isLand ? "Add custom land feature" : "Add custom amenity"}
+            className={inputClass}
+          />
+          <button
+            type="button"
+            onClick={handleAddCustom}
+            className="px-5 py-3 bg-[#A87DC2] text-white rounded-xl hover:opacity-90"
+          >
+            Add
+          </button>
+        </div>
+
+        {/* Selected Items */}
+        <div className="flex flex-wrap gap-2 mt-4">
+          {(formData.features || []).map((item: string) => (
+            <span
+              key={item}
+              className="px-4 py-2 rounded-full bg-[#A87DC2]/10 text-[#A87DC2] border border-[#A87DC2] text-sm flex items-center gap-2"
+            >
+              {item}
+              <button onClick={() => handleRemove(item)} className="text-xs font-bold">
+                ✕
+              </button>
+            </span>
           ))}
         </div>
       </div>

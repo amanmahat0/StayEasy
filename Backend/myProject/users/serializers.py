@@ -1,7 +1,78 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from .models import Profile, KYC, Property, PropertyImage, Booking
+from .models import Profile, KYC, Property, PropertyImage, Booking, Favorite, ViewedProperty, LandlordUser, Chat, Message
+
+
+# =====================================================
+# LANDLORD USER SERIALIZERS
+# =====================================================
+class LandlordRegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(
+        write_only=True,
+        validators=[validate_password]
+    )
+    password2 = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = LandlordUser
+        fields = [
+            "email",
+            "name",
+            "business_name",
+            "phone",
+            "password",
+            "password2",
+        ]
+
+    def validate(self, attrs):
+        # Check for duplicate email
+        if LandlordUser.objects.filter(email__iexact=attrs.get("email")).exists():
+            raise serializers.ValidationError({
+                "email": "An account with this email already exists."
+            })
+
+        # Check password match
+        if attrs["password"] != attrs["password2"]:
+            raise serializers.ValidationError({
+                "password": "Passwords do not match"
+            })
+
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop("password2")
+        password = validated_data.pop("password")
+
+        landlord = LandlordUser.objects.create(**validated_data)
+        
+        # Use Django's password hashing
+        from django.contrib.auth.hashers import make_password
+        landlord.password = make_password(password)
+        landlord.save()
+
+        return landlord
+
+
+class LandlordLoginSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+
+
+class LandlordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LandlordUser
+        fields = [
+            "id",
+            "email",
+            "name",
+            "business_name",
+            "phone",
+            "is_active",
+            "email_verified",
+            "created_at",
+        ]
+        read_only_fields = ["id", "created_at"]
 
 
 # =====================================================
@@ -184,10 +255,19 @@ class KYCUpdateStatusSerializer(serializers.ModelSerializer):
 # PROPERTY IMAGE SERIALIZER
 # =====================================================
 class PropertyImageSerializer(serializers.ModelSerializer):
+    # Return full image URL with /uploads/ prefix
+    image = serializers.SerializerMethodField()
 
     class Meta:
         model = PropertyImage
         fields = ["id", "image"]
+
+    def get_image(self, obj):
+        """Return full image URL path"""
+        if obj.image:
+            # Return path with /uploads/ prefix for frontend to use
+            return f"/uploads/{obj.image.name}"
+        return None
 
 
 # =====================================================
@@ -204,8 +284,19 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
         model = Property
         exclude = ["owner", "created_at"]
 
+    def to_internal_value(self, data):
+        # Remove owner/landlord if sent by frontend
+        data = data.copy()
+        data.pop('owner', None)
+        data.pop('landlord', None)
+        return super().to_internal_value(data)
+
     def create(self, validated_data):
         images = validated_data.pop("images", [])
+        
+        # Ensure status defaults to 'published' if not provided
+        if 'status' not in validated_data:
+            validated_data['status'] = 'published'
 
         property_instance = Property.objects.create(
             **validated_data
@@ -219,17 +310,88 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
 
         return property_instance
 
+# =====================================================
+# PROPERTY UPDATE SERIALIZER (PUT THIS BELOW CREATE SERIALIZER)
+# This is used ONLY for editing property (with image add/remove support)
+# Do NOT replace PropertyCreateSerializer
+# =====================================================
+import json
+from rest_framework import serializers
+from .models import Property, PropertyImage
 
+
+class PropertyUpdateSerializer(serializers.ModelSerializer):
+    images = serializers.ListField(
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False
+    )
+    existing_images = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = Property
+        exclude = ["owner", "created_at"]
+
+    def update(self, instance, validated_data):
+        images = validated_data.pop("images", [])
+        existing_images = validated_data.pop("existing_images", None)
+
+        # update normal fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # -----------------------------
+        # HANDLE IMAGE DELETION SAFELY
+        # -----------------------------
+        if existing_images:
+            try:
+                existing_images = json.loads(existing_images)
+            except:
+                existing_images = []
+
+            for img in instance.images.all():
+                # safer comparison using URL
+                if img.image.url not in existing_images:
+                    img.delete()
+
+        # -----------------------------
+        # ADD NEW IMAGES
+        # -----------------------------
+        for image in images:
+            PropertyImage.objects.create(
+                property=instance,
+                image=image
+            )
+
+        return instance
 # =====================================================
 # PROPERTY SERIALIZER (READ)
 # =====================================================
 class PropertySerializer(serializers.ModelSerializer):
     images = PropertyImageSerializer(many=True, read_only=True)
+    main_image = serializers.SerializerMethodField()
+    has_confirmed_booking = serializers.SerializerMethodField()
 
     class Meta:
         model = Property
         fields = "__all__"
         read_only_fields = ["owner", "created_at"]
+
+    def get_main_image(self, obj):
+        """Return first image as main image for display"""
+        first_image = obj.images.first()
+        if first_image:
+            return f"/uploads/{first_image.image.name}"
+        return None
+
+    def get_has_confirmed_booking(self, obj):
+        """Check if property has any confirmed bookings"""
+        from .models import Booking
+        return Booking.objects.filter(
+            property=obj,
+            status='confirmed'
+        ).exists()
 
 
 # =====================================================
@@ -259,13 +421,20 @@ class BookingDetailSerializer(serializers.ModelSerializer):
             "check_out",
             "total_price",
             "status",
+            "payment_method",
+            "payment_status",
+            "payment_type",
             "created_at",
             "updated_at"
         ]
         read_only_fields = ["created_at", "updated_at"]
 
     def get_property_info(self, obj):
-        """Return property details"""
+        """Return property details with images"""
+        images = []
+        if obj.property.images.exists():
+            images = PropertyImageSerializer(obj.property.images.all(), many=True).data
+        
         return {
             "id": obj.property.id,
             "title": obj.property.title,
@@ -273,6 +442,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
             "city": obj.property.city,
             "price": obj.property.price,
             "property_type": obj.property.property_type,
+            "images": images,
         }
 
     def get_user_info(self, obj):
@@ -291,10 +461,72 @@ class BookingCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Booking
-        fields = ["property", "check_in", "check_out", "total_price"]
+        fields = ["property", "check_in", "check_out", "total_price", "payment_type"]
 
     def validate(self, attrs):
         """Validate booking dates"""
         if attrs["check_in"] >= attrs["check_out"]:
             raise serializers.ValidationError("Check-out date must be after check-in date")
         return attrs
+
+
+# =====================================================
+# FAVORITE SERIALIZERS
+# =====================================================
+class FavoriteSerializer(serializers.ModelSerializer):
+    """Serializer for user favorites"""
+    property_info = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Favorite
+        fields = ["id", "property_info", "created_at"]
+        read_only_fields = ["id", "created_at"]
+
+    def get_property_info(self, obj):
+        """Return property details"""
+        return {
+            "id": obj.property.id,
+            "title": obj.property.title,
+            "description": obj.property.description,
+            "property_type": obj.property.property_type,
+            "address": obj.property.address,
+            "city": obj.property.city,
+            "price": str(obj.property.price),
+            "available": obj.property.available,
+            "images": PropertyImageSerializer(obj.property.images.all(), many=True).data,
+        }
+
+
+class FavoriteCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating/removing favorites"""
+
+    class Meta:
+        model = Favorite
+        fields = ["property"]
+
+
+# =====================================================
+# VIEWED PROPERTY SERIALIZERS
+# =====================================================
+class ViewedPropertySerializer(serializers.ModelSerializer):
+    """Serializer for viewed properties"""
+    property_info = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ViewedProperty
+        fields = ["id", "property_info", "view_count", "last_viewed", "created_at"]
+        read_only_fields = ["id", "last_viewed", "created_at"]
+
+    def get_property_info(self, obj):
+        """Return property details"""
+        return {
+            "id": obj.property.id,
+            "title": obj.property.title,
+            "description": obj.property.description,
+            "property_type": obj.property.property_type,
+            "address": obj.property.address,
+            "city": obj.property.city,
+            "price": str(obj.property.price),
+            "available": obj.property.available,
+            "images": PropertyImageSerializer(obj.property.images.all(), many=True).data,
+        }

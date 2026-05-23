@@ -16,7 +16,10 @@ const QuickActions = () => {
           Add Property
         </button>
 
-        <button className="w-full border py-2 rounded-lg text-sm">
+        <button 
+          onClick={() => navigate("/tenant")}
+          className="w-full border py-2 rounded-lg text-sm"
+        >
           View Tenants
         </button>
 

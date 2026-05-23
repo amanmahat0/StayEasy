@@ -5,47 +5,148 @@ from .views import (
     VerifyEmailView,
     CustomTokenObtainPairView,
     ProfileView,
+    LandlordRegisterView,
+    LandlordLoginView,
+    LandlordProfileView,
+    LandlordPropertyCreateView,
+    LandlordPropertyListView,
+    LandlordPropertyDetailView,
+    LandlordPropertyUpdateView,
+    LandlordPropertyDeleteView,
+    LandlordPropertyBookingsView,
     KYCSubmitView,
     KYCStatusView,
     PropertyCreateView,
     PropertyListView,
     PropertyDetailView,
+    CheckBookingAvailabilityView,
+    PropertyUpdateView,
+    PropertyDeleteView,
     AdminKYCListView,
     AdminKYCDetailView,
     AdminKYCUpdateStatusView,
     AdminKYCStatsView,
     AdminPropertyListView,
-    LandlordPropertyListView,
     LandlordDashboardView,
     BookingCreateView,
     UserBookingListView,
     LandlordBookingListView,
+    LandlordTenantPaymentHistoryView,
     BookingDetailView,
+    BookingCancelView,
+    InitiateEsewaPaymentView,
+    VerifyEsewaPaymentView,
+    ProcessPaymentView,
+    AdminBookingListView,
+    AdminBookingUpdateStatusView,
+    AdminUserListView,
+    AdminLandlordListView,
+    UserFavoriteListView,
+    FavoriteToggleView,
+    ViewedPropertyListView,
+    ViewPropertyView,
+)
+from .chat_views import (
+    UserChatListView,
+    LandlordChatListView,
+    ChatDetailView,
+    ChatCreateView,
+    SendMessageView,
+    GetChatMessagesView,
+    StartChatFromPropertyView,
+    ConversationListView,
+    ConversationDetailView,
+    ConversationMessagesView,
+    CreateConversationMessageView,
+    GetOrCreateConversationView,
+    MarkConversationReadView,
+    DeleteConversationView,
 )
 
 urlpatterns = [
+    # User Authentication Endpoints
     path('register/', RegisterView.as_view()),
     path('verify-email/', VerifyEmailView.as_view()),
     path('login/', CustomTokenObtainPairView.as_view()),
     path('refresh/', TokenRefreshView.as_view()),
 
+    # User Profile Endpoints
     path('profile/', ProfileView.as_view()),
     path('kyc/submit/', KYCSubmitView.as_view()),
     path('kyc/status/', KYCStatusView.as_view()),
+    
+    # =====================================================
+    # LANDLORD AUTHENTICATION & MANAGEMENT ENDPOINTS
+    # =====================================================
+    path('landlord/register/', LandlordRegisterView.as_view(), name='landlord-register'),
+    path('landlord/login/', LandlordLoginView.as_view(), name='landlord-login'),
+    path('landlord/profile/', LandlordProfileView.as_view(), name='landlord-profile'),
+    
+    # Landlord Property Management
+    path('landlord/properties/create/', LandlordPropertyCreateView.as_view(), name='landlord-property-create'),
+    path('landlord/properties/', LandlordPropertyListView.as_view(), name='landlord-property-list'),
+    path('landlord/properties/<int:id>/', LandlordPropertyDetailView.as_view(), name='landlord-property-detail'),
+    path('landlord/properties/<int:id>/update/', LandlordPropertyUpdateView.as_view(), name='landlord-property-update'),
+    path('landlord/properties/<int:id>/delete/', LandlordPropertyDeleteView.as_view(), name='landlord-property-delete'),
+    path('landlord/properties/<int:property_id>/bookings/', LandlordPropertyBookingsView.as_view(), name='landlord-property-bookings'),
+    
+    # =====================================================
+    # USER PROPERTY & BOOKING ENDPOINTS
+    # =====================================================
     path('property/add/', PropertyCreateView.as_view()),
     
     # Property Endpoints
     path('properties/', PropertyListView.as_view(), name='property-list'),
     path('properties/<int:id>/', PropertyDetailView.as_view(), name='property-detail'),
-    path('landlord/properties/', LandlordPropertyListView.as_view(), name='landlord-property-list'),
-    path('landlord/dashboard/', LandlordDashboardView.as_view(), name='landlord-dashboard'),
+    path('bookings/check-availability/', CheckBookingAvailabilityView.as_view(), name='check-availability'),
+    path('property/update/<int:id>/', PropertyUpdateView.as_view(), name='property-update'),
+    path('property/delete/<int:id>/', PropertyDeleteView.as_view(), name='property-delete'),
     
     # Booking Endpoints
     path('bookings/create/', BookingCreateView.as_view(), name='booking-create'),
     path('bookings/', UserBookingListView.as_view(), name='user-booking-list'),
-    path('landlord/bookings/', LandlordBookingListView.as_view(), name='landlord-booking-list'),
     path('bookings/<int:id>/', BookingDetailView.as_view(), name='booking-detail'),
+    path('bookings/<int:id>/cancel/', BookingCancelView.as_view(), name='booking-cancel'),
     
+    # eSewa 2.0 Payment Endpoints
+    path('payment/esewa/initiate/', InitiateEsewaPaymentView.as_view(), name='initiate-esewa-payment'),
+    path('payment/esewa/verify/', VerifyEsewaPaymentView.as_view(), name='verify-esewa-payment'),
+    path('bookings/pay/', ProcessPaymentView.as_view(), name='process-payment'),  # Legacy
+    
+    # Favorite Endpoints
+    path('favorites/', UserFavoriteListView.as_view(), name='user-favorite-list'),
+    path('favorites/toggle/', FavoriteToggleView.as_view(), name='favorite-toggle'),
+    
+    # Viewed Property Endpoints
+    path('viewed-properties/', ViewedPropertyListView.as_view(), name='viewed-property-list'),
+    path('view-property/', ViewPropertyView.as_view(), name='view-property'),
+    
+    # =====================================================
+    # CHAT ENDPOINTS
+    # =====================================================
+    # User chat endpoints
+    path('chats/', UserChatListView.as_view(), name='user-chat-list'),
+    path('chats/<int:id>/', ChatDetailView.as_view(), name='chat-detail'),
+    path('chats/create/', ChatCreateView.as_view(), name='chat-create'),
+    path('chats/<int:chat_id>/send-message/', SendMessageView.as_view(), name='send-message'),
+    path('chats/<int:chat_id>/messages/', GetChatMessagesView.as_view(), name='get-messages'),
+    path('chats/start-from-property/', StartChatFromPropertyView.as_view(), name='start-chat-from-property'),
+    
+    # New conversation endpoints (Socket.IO compatible)
+    path('chat/conversations/', ConversationListView.as_view(), name='conversation-list'),
+    path('chat/conversations/<int:id>/', ConversationDetailView.as_view(), name='conversation-detail'),
+    path('chat/conversations/<int:id>/messages/', ConversationMessagesView.as_view(), name='conversation-messages'),
+    path('chat/conversations/<int:id>/messages/', CreateConversationMessageView.as_view(), name='create-conversation-message'),
+    path('chat/get-or-create/', GetOrCreateConversationView.as_view(), name='get-or-create-conversation'),
+    path('chat/conversations/<int:id>/mark-read/', MarkConversationReadView.as_view(), name='mark-read'),
+    path('chat/conversations/<int:id>/', DeleteConversationView.as_view(), name='delete-conversation'),
+    
+    # Landlord chat endpoints
+    path('landlord/chats/', LandlordChatListView.as_view(), name='landlord-chat-list'),
+    
+    # =====================================================
+    # ADMIN MANAGEMENT ENDPOINTS
+    # =====================================================
     # Admin KYC Management Endpoints
     path('admin/kyc/', AdminKYCListView.as_view(), name='admin-kyc-list'),
     path('admin/kyc/<int:id>/', AdminKYCDetailView.as_view(), name='admin-kyc-detail'),
@@ -54,4 +155,12 @@ urlpatterns = [
     
     # Admin Property Management
     path('admin/properties/', AdminPropertyListView.as_view(), name='admin-property-list'),
+    
+    # Admin User Management
+    path('admin/users/', AdminUserListView.as_view(), name='admin-user-list'),
+    path('admin/landlords/', AdminLandlordListView.as_view(), name='admin-landlord-list'),
+    
+    # Admin Booking Management
+    path('admin/bookings/', AdminBookingListView.as_view(), name='admin-booking-list'),
+    path('admin/bookings/<int:id>/update-status/', AdminBookingUpdateStatusView.as_view(), name='admin-booking-update-status'),
 ]

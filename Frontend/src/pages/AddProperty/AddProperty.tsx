@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Home } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useProperties } from '../../context/PropertyContext';
+import { getPropertyDetail, updateProperty } from '../../services/api';
 
 // Component Imports
 import Stepper from '../../components/AddProperty/Stepper';
@@ -37,7 +39,10 @@ type FormDataType = {
 
 const AddProperty = () => {
   const navigate = useNavigate();
+  const { id } = useParams<{ id?: string }>();
+  const { refreshProperties } = useProperties();
   const [currentStep, setCurrentStep] = useState(1);
+  const [loading, setLoading] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState<FormDataType>({
@@ -48,6 +53,47 @@ const AddProperty = () => {
     monthlyRent: '', securityDeposit: '', maintenanceFee: '',
     images: []   // File[]
   });
+
+  // Fetch property data if editing
+  useEffect(() => {
+    const fetchProperty = async () => {
+      if (!id) return;
+      setLoading(true);
+      try {
+        const property = await getPropertyDetail(Number(id));
+        setFormData((prev) => ({
+          ...prev,
+          propertyType: property.property_type || 'apartment',
+          title: property.title || '',
+          description: property.description || '',
+          province: property.province || '',
+          district: property.district || '',
+          city: property.city || '',
+          area: property.area || '',
+          fullAddress: property.address || '',
+          bedrooms: property.bedrooms?.toString() || '',
+          bathrooms: property.bathrooms?.toString() || '',
+          areaSize: property.area_size?.toString() || '',
+          floorNumber: property.floor_number?.toString() || '',
+          totalFloors: property.total_floors?.toString() || '',
+          furnishing: property.furnishing || '',
+          amenities: property.amenities || [],
+          availableFrom: property.available_from || '',
+          leasePeriod: property.lease_period || '',
+          monthlyRent: property.price?.toString() || '',
+          securityDeposit: property.security_deposit?.toString() || '',
+          maintenanceFee: property.maintenance_fee?.toString() || '',
+          images: [], // Images are not pre-filled as File[]
+        }));
+      } catch (err) {
+        alert('Failed to load property for editing.');
+        navigate('/dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (id) fetchProperty();
+  }, [id, navigate]);
 
   const handleNext = () => {
     setCurrentStep((prev) => Math.min(prev + 1, 5));
@@ -63,47 +109,48 @@ const AddProperty = () => {
   // FULL SUBMIT HANDLER (TYPE SAFE)
   // -----------------------------
   const handleSubmit = async () => {
-    const token = localStorage.getItem('access'); // JWT from storage (correct key)
-    
+    const token = localStorage.getItem('access');
     if (!token) {
-      alert('You must be logged in to add a property');
+      alert('You must be logged in to add or edit a property');
       navigate('/login');
       return;
     }
 
     const formPayload = new FormData();
-
-    // Map form fields to Django model fields
     formPayload.append('property_type', formData.propertyType);
     formPayload.append('title', formData.title);
     formPayload.append('description', formData.description);
     formPayload.append('address', formData.fullAddress || `${formData.city}, ${formData.district}`);
     formPayload.append('city', formData.city);
     formPayload.append('price', formData.monthlyRent);
-
-    // Append all image files
     formData.images.forEach((file: File) => {
       formPayload.append('images', file);
     });
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/users/property/add/', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formPayload,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        console.error('Server error:', data);
-        alert('Failed to add property: ' + JSON.stringify(data.error || data));
-        return;
+      let data;
+      if (id) {
+        // PATCH update
+        data = await updateProperty(Number(id), formPayload);
+        alert('Property updated successfully!');
+      } else {
+        // POST create
+        const response = await fetch('http://127.0.0.1:8000/api/users/landlord/properties/create/', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formPayload,
+        });
+        data = await response.json();
+        if (!response.ok) {
+          console.error('Server error:', data);
+          alert('Failed to add property: ' + JSON.stringify(data.error || data));
+          return;
+        }
+        alert('Property added successfully!');
       }
-
-      alert('Property added successfully!');
+      await refreshProperties();
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Request error:', err);
@@ -145,8 +192,8 @@ const AddProperty = () => {
       <div className="max-w-4xl mx-auto px-6 py-8">
         {/* 2. Header Title */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Add New Property</h1>
-          <p className="text-gray-500">List your property and reach thousands of verified tenants</p>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">{id ? 'Edit Property' : 'Add New Property'}</h1>
+          <p className="text-gray-500">{id ? 'Update your property details' : 'List your property and reach thousands of verified tenants'}</p>
         </div>
 
         {/* 3. Stepper Progress Bar */}
@@ -156,7 +203,7 @@ const AddProperty = () => {
 
         {/* 4. Main Form Card */}
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 mb-8 min-h-[400px]">
-          {renderStep()}
+          {loading ? <div className="text-center text-gray-500">Loading property...</div> : renderStep()}
         </div>
 
         {/* 5. Footer Buttons */}
@@ -178,7 +225,7 @@ const AddProperty = () => {
             className={`px-8 py-3 text-white rounded-xl font-semibold text-sm shadow-md transition-all transform active:scale-95
               bg-[#A87DC2] hover:opacity-90 shadow-[#A87DC2]/30`}
           >
-            {currentStep === 5 ? 'Submit Property' : 'Next Step'}
+            {currentStep === 5 ? (id ? 'Update Property' : 'Submit Property') : 'Next Step'}
           </button>
         </div>
       </div>

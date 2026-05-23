@@ -110,7 +110,7 @@ const Signup: React.FC = () => {
           <div className="auth-features">
             {[
               "Verified Properties & Landlords",
-              "Secure Khalti Payment Integration",
+              "Secure eSewa Payment Integration",
               "Digital Rental Agreements",
               "24/7 Customer Support"
             ].map((text, index) => (

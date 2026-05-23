@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('users', '0007_booking'),
+        ('users', '0006_remove_property_amenities_remove_property_area_and_more'),
     ]
 
     operations = [

@@ -97,9 +97,11 @@ USE_I18N = True
 USE_TZ = True
 
 # -----------------------------------------------------------
-# STATIC FILES
+# STATIC FILES & MEDIA FILES
 # -----------------------------------------------------------
 STATIC_URL = 'static/'
+MEDIA_URL = '/uploads/'
+MEDIA_ROOT = BASE_DIR / 'uploads'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # -----------------------------------------------------------
@@ -128,3 +130,11 @@ SIMPLE_JWT = {
 # EMAIL SETTINGS (DEVELOPMENT)
 # ===============================
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# ===============================
+# ESEWA PAYMENT SETTINGS
+# ===============================
+ESEWA_MERCHANT_CODE = config('ESEWA_MERCHANT_CODE', default='EPAYTEST')
+ESEWA_SECRET_KEY = config('ESEWA_SECRET_KEY', default='8gBm/:&EnhH.1/q')
+ESEWA_SANDBOX_URL = 'https://rc-epay.esewa.com.np/api/epay/txn/v1/verify/'
+ESEWA_FORM_URL = 'https://rc-epay.esewa.com.np/api/epay/main/v2/form'

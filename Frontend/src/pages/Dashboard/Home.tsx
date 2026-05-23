@@ -1,223 +1,225 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  MapPin,
-  Heart,
-  SlidersHorizontal,
-  Grid,
-  List,
-  Calendar,
-} from "lucide-react";
+import { MapPin, Heart, SlidersHorizontal, Grid, List } from "lucide-react";
 
+// **Imports for API and Layout**
 import PublicNavbar from "../../components/Navbar/PublicNavbar";
 import Footer from "../../components/Footer";
-import { getProperties } from "../../services/api";
-
-interface PropertyData {
-  id: number;
-  title: string;
-  address: string;
-  city: string;
-  property_type: string;
-  price: number;
-  available: boolean;
-  owner: number;
-  created_at: string;
-  description: string;
-  images: Array<{
-    id: number;
-    image: string;
-  }>;
-}
+import { getProperties, getUserFavorites, addFavorite, removeFavorite } from "../../services/api";
 
 export default function Home() {
   const navigate = useNavigate();
-  const [properties, setProperties] = useState<PropertyData[]>([]);
+  const [properties, setProperties] = useState<any[]>([]);
+  const [favorites, setFavorites] = useState<Set<number>>(new Set());
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedType, setSelectedType] = useState("All");
+  const [loading, setLoading] = useState(false);
 
+  // **Fetch favorites and properties on component mount**
   useEffect(() => {
+    fetchFavorites();
     fetchProperties();
   }, []);
 
   const fetchProperties = async () => {
     try {
       const data = await getProperties();
-      setProperties(data);
+      setProperties(data || []);
     } catch (error) {
-      console.error("Failed to fetch properties:", error);
-      setProperties([]);
+      console.error("Fetch error:", error);
     }
   };
 
-  const filteredProperties = properties.filter((property) => {
-    if (selectedType === "All") return true;
-    return property.property_type.toLowerCase() === selectedType.toLowerCase();
-  });
-
-  const getPropertyTypeLabel = (type: string) => {
-    const typeMap: { [key: string]: string } = {
-      "room": "ROOM",
-      "apartment": "APARTMENT",
-      "house": "HOUSE",
-      "land": "LAND",
-    };
-    return typeMap[type.toLowerCase()] || type.toUpperCase();
-  };
-
-  const getPropertyImage = (property: PropertyData) => {
-    if (property.images && property.images.length > 0) {
-      return `http://127.0.0.1:8000${property.images[0].image}`;
+  const fetchFavorites = async () => {
+    try {
+      const data = await getUserFavorites();
+      // Normalize IDs and ensure we only keep numbers so the Set is typed as Set<number>
+      const ids = (data || [])
+        .map((fav: any) => fav?.property_info?.id ?? fav?.property?.id)
+        .filter((id: any): id is number => typeof id === "number");
+      const favoriteIds = new Set<number>(ids);
+      setFavorites(favoriteIds);
+    } catch (error) {
+      console.error("Favorites fetch error:", error);
     }
-    // Fallback placeholder
-    return "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?q=80&w=600&auto=format&fit=crop";
   };
+
+  const handleFavoriteToggle = async (e: React.MouseEvent, propertyId: number) => {
+    e.stopPropagation();
+    setLoading(true);
+    
+    try {
+      if (favorites.has(propertyId)) {
+        // Remove from favorites
+        await removeFavorite(propertyId);
+        setFavorites(prev => {
+          const updated = new Set(prev);
+          updated.delete(propertyId);
+          return updated;
+        });
+      } else {
+        // Add to favorites
+        await addFavorite(propertyId);
+        setFavorites(prev => new Set([...prev, propertyId]));
+      }
+    } catch (error) {
+      console.error("Favorite toggle error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePropertyClick = (propertyId: number) => {
+    navigate(`/property/${propertyId}`);
+  };
+
+  const filteredProperties = properties.filter((p) => 
+    selectedType === "All" || p.property_type.toLowerCase() === selectedType.toLowerCase()
+  );
 
   return (
-    <div className="min-h-screen bg-[#F9FAFB] font-inter">
+    <div className="min-h-screen bg-[#F8F9FB] font-sans text-[#2D3748]">
       <PublicNavbar />
 
-      <main className="max-w-[1440px] mx-auto px-6 py-10">
-        <div className="mb-8">
-          <h1 className="text-4xl font-black text-gray-900 mb-2">Available Properties</h1>
-          <p className="text-gray-500 font-medium">{filteredProperties.length} properties found</p>
+      <main className="max-w-[1400px] mx-auto px-10 py-12">
+        {/* **Header matching the image typography** */}
+        <div className="mb-10">
+          <h1 className="text-4xl font-bold text-[#1A202C] tracking-tight">Available Properties</h1>
+          <p className="text-gray-500 text-sm mt-2">{filteredProperties.length} properties found</p>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-10">
-          {/* Filter Sidebar */}
-          <aside className="w-full lg:w-72 shrink-0">
+          
+          {/* **Sidebar with Circular Radio Filters** */}
+          <aside className="w-full lg:w-64 shrink-0">
             <div className="bg-white rounded-[32px] border border-gray-100 p-8 shadow-sm sticky top-24">
-              <div className="flex items-center gap-2 mb-8 text-lg font-bold text-gray-800">
+              <div className="flex items-center gap-3 mb-8 text-lg font-bold text-[#1A202C]">
                 <SlidersHorizontal size={18} className="text-[#A989C8]" />
                 Filters
               </div>
 
-              <div className="mb-8">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">Property Type</label>
-                {["All", "Room", "Apartment", "House", "Land"].map((type) => (
-                  <label key={type} className="flex items-center gap-3 mb-3 cursor-pointer group">
-                    <input 
-                      type="radio" 
-                      name="type" 
-                      checked={selectedType === type}
-                      onChange={() => setSelectedType(type)}
-                      className="w-4 h-4 accent-[#A989C8] cursor-pointer" 
-                    />
-                    <span className={`text-sm font-medium transition ${selectedType === type ? "text-[#A989C8]" : "text-gray-500"}`}>
-                      {type}
-                    </span>
-                  </label>
-                ))}
-              </div>
-
-              <div className="mb-8">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">Price Range (NPR/month)</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <input placeholder="Min price" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-xs outline-none" />
-                  <input placeholder="Max price" className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-xs outline-none" />
+              {/* **Property Type with the Circle Indicators** */}
+              <div className="mb-10">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-6">Property Type</label>
+                <div className="space-y-5">
+                  {["All", "Room", "Flat", "Land", "House"].map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setSelectedType(type)}
+                      className="flex items-center gap-3 w-full group"
+                    >
+                      {/* **Custom Circle Indicator** */}
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                        selectedType === type ? "border-[#A989C8]" : "border-gray-300 group-hover:border-gray-400"
+                      }`}>
+                        {selectedType === type && <div className="w-2.5 h-2.5 bg-[#A989C8] rounded-full" />}
+                      </div>
+                      <span className={`text-sm font-semibold ${selectedType === type ? "text-[#A989C8]" : "text-gray-500"}`}>
+                        {type}
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              <div className="mb-8">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">Location</label>
-                <input placeholder="Search location..." className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-xs outline-none" />
+              {/* **Price Range Inputs** */}
+              <div className="mb-10">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-5">Price Range (NPR/Month)</label>
+                <div className="flex gap-2">
+                  <input placeholder="Min price" className="w-full px-4 py-3 bg-[#F8F9FB] rounded-xl text-xs border-none outline-none" />
+                  <input placeholder="Max price" className="w-full px-4 py-3 bg-[#F8F9FB] rounded-xl text-xs border-none outline-none" />
+                </div>
               </div>
-
-              <div className="mb-8">
-                <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-4">Availability</label>
-                <input className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-xs outline-none" type="date" />
-              </div>
-
-              <label className="flex items-center gap-3 mb-8 cursor-pointer">
-                <input type="checkbox" className="w-4 h-4 accent-[#A989C8]" />
-                <span className="text-xs font-bold text-gray-600">Verified properties only</span>
-              </label>
 
               <button 
                 onClick={() => setSelectedType("All")}
-                className="w-full py-4 text-xs font-black text-gray-400 border border-gray-100 rounded-xl hover:bg-gray-50 transition uppercase tracking-widest"
+                className="w-full py-4 text-[10px] font-bold text-gray-400 border border-gray-100 rounded-2xl hover:bg-gray-50 transition uppercase tracking-widest"
               >
                 Reset Filters
               </button>
             </div>
           </aside>
 
-          {/* Listings Area */}
+          {/* **Properties Listing Area** */}
           <div className="flex-1">
-            <div className="flex justify-end gap-2 mb-8 items-center">
-              <button onClick={() => setViewMode("grid")} className={`p-2.5 rounded-xl transition ${viewMode === 'grid' ? 'bg-[#A989C8] text-white shadow-lg shadow-purple-100' : 'bg-white border text-gray-400'}`}><Grid size={20} /></button>
-              <button onClick={() => setViewMode("list")} className={`p-2.5 rounded-xl transition ${viewMode === 'list' ? 'bg-[#A989C8] text-white shadow-lg shadow-purple-100' : 'bg-white border text-gray-400'}`}><List size={20} /></button>
+            {/* **View Switcher** */}
+            <div className="flex justify-end gap-2 mb-8">
+              <button onClick={() => setViewMode("grid")} className={`p-2.5 rounded-xl transition ${viewMode === 'grid' ? 'bg-[#A989C8] text-white' : 'bg-white border text-gray-300'}`}><Grid size={18} /></button>
+              <button onClick={() => setViewMode("list")} className={`p-2.5 rounded-xl transition ${viewMode === 'list' ? 'bg-[#A989C8] text-white' : 'bg-white border text-gray-300'}`}><List size={18} /></button>
             </div>
 
+            {/* **Property Cards** */}
             <div className={`grid gap-8 ${viewMode === "grid" ? "grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "grid-cols-1"}`}>
-              {filteredProperties.length === 0 ? (
-                <div className="col-span-full flex items-center justify-center py-12">
-                  <p className="text-gray-500">No properties found</p>
-                </div>
-              ) : (
-                filteredProperties.map((property) => (
-                  <div key={property.id} className="group bg-white rounded-[32px] overflow-hidden border border-gray-100 shadow-sm hover:shadow-2xl transition-all duration-500">
-                    {/* Image Container */}
-                    <div className="relative h-64 overflow-hidden">
-                      <img 
-                        src={getPropertyImage(property)} 
-                        alt={property.title} 
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                      />
-                      
-                      {/* Top Badges */}
-                      <div className="absolute top-4 left-4 flex flex-col gap-2">
-                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest text-white ${property.available ? 'bg-emerald-500' : 'bg-orange-400'}`}>
-                          {property.available ? 'Available' : 'Booked'}
-                        </span>
-                      </div>
-
-                      {/* Heart Icon */}
-                      <button className="absolute top-4 right-4 p-2.5 bg-white/90 backdrop-blur-sm rounded-full text-gray-400 hover:text-red-500 transition-colors shadow-sm">
-                        <Heart size={18} />
-                      </button>
-
-                      {/* Property Type Badge */}
-                      <div className="absolute bottom-4 left-4">
-                        <span className="bg-white/90 backdrop-blur-sm text-gray-800 text-[10px] font-black px-4 py-1.5 rounded-lg uppercase tracking-widest shadow-sm">
-                          {getPropertyTypeLabel(property.property_type)}
-                        </span>
-                      </div>
+              {filteredProperties.map((property) => (
+                <div key={property.id} className="bg-white rounded-[32px] overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300">
+                  
+                  {/* **Image Section with Badges** */}
+                  <div className="relative h-56 overflow-hidden bg-gray-100 group">
+                    <img 
+                      src={`http://127.0.0.1:8000${property.images[0]?.image}`} 
+                      alt={property.title} 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out" 
+                      onError={(e) => {
+                        e.currentTarget.src = "/no-image.png";
+                        e.currentTarget.classList.add("bg-gray-200");
+                      }}
+                    />
+                    
+                    {/* **Status Badge (AVAILABLE/BOOKED)** */}
+                    <div className="absolute top-4 left-4">
+                      <span className={`px-3 py-1.5 rounded-lg text-[9px] font-bold uppercase text-white ${property.has_confirmed_booking ? 'bg-[#FF9900]' : 'bg-[#10B981]'}`}>
+                        {property.has_confirmed_booking ? 'Booked' : 'Available'}
+                      </span>
                     </div>
 
-                    {/* Content */}
-                    <div className="p-8">
-                      <h3 className="font-bold text-xl text-gray-800 tracking-tight mb-1">{property.title}</h3>
-                      <div className="flex items-center gap-1 text-gray-400 text-xs mb-6">
-                        <MapPin size={12} /> {property.city || property.address}
-                      </div>
+                    {/* **Type Badge (Bottom Left Overlay)** */}
+                    <div className="absolute bottom-4 left-4">
+                      <span className="bg-white px-4 py-1 rounded-lg text-[9px] font-bold uppercase text-[#1A202C] shadow-sm">
+                        {property.property_type}
+                      </span>
+                    </div>
 
-                      <div className="flex items-center justify-between mb-8">
-                          <div className="flex items-center gap-1">
-                              <span className="text-gray-600 text-sm font-bold">Property Type</span>
-                          </div>
-                          <span className="text-gray-400 text-[10px] font-bold flex items-center gap-1.5"><Calendar size={14}/> View Calendar</span>
-                      </div>
+                    {/* **Wishlist Heart** */}
+                    <button 
+                      onClick={(e) => handleFavoriteToggle(e, property.id)}
+                      disabled={loading}
+                      className={`absolute top-4 right-4 p-2 bg-white/90 backdrop-blur-sm rounded-full shadow-sm transition-colors ${
+                        favorites.has(property.id) 
+                          ? 'text-red-500 hover:text-red-600' 
+                          : 'text-gray-300 hover:text-red-500'
+                      }`}
+                    >
+                      <Heart size={16} fill={favorites.has(property.id) ? 'currentColor' : 'none'} />
+                    </button>
+                  </div>
 
-                      <div className="flex items-center justify-between pt-6 border-t border-gray-50">
-                        <div>
-                          <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Starting from</span>
-                          <div className="flex items-baseline gap-1">
-                              <span className="text-[#A989C8] font-black text-2xl">NPR {property.price.toLocaleString()}</span>
-                              <span className="text-gray-400 text-xs font-bold">/month</span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => navigate(`/property/${property.id}`)}
-                          className="bg-[#A989C8] hover:bg-[#9370DB] text-white px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-purple-50 transition-all active:scale-95"
-                        >
-                          View Details
-                        </button>
+                  {/* **Content Area** */}
+                  <div className="p-7">
+                    <h3 className="font-bold text-lg text-[#1A202C] mb-1 line-clamp-1 leading-tight">{property.title}</h3>
+                    <div className="flex items-center gap-1.5 text-gray-400 text-xs mb-5">
+                      <MapPin size={12} /> <span className="truncate">{property.city}</span>
+                    </div>
+
+                    <div className="text-xs text-gray-500 font-semibold mb-8">
+                      {property.property_type === 'Land' ? 'Property Details' : '2 Bed • 2 Bath'}
+                    </div>
+
+                    {/* **Footer of card** */}
+                    <div className="flex items-center justify-between pt-5 border-t border-gray-50">
+                      <div>
+                        <p className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Per Month</p>
+                        <p className="text-[#A989C8] font-bold text-lg">NPR {property.price.toLocaleString()}</p>
                       </div>
+                      <button 
+                        onClick={() => handlePropertyClick(property.id)}
+                        className="bg-[#A989C8] hover:bg-[#9171B3] text-white px-6 py-2.5 rounded-2xl text-[10px] font-bold uppercase tracking-wider transition-all"
+                      >
+                        View
+                      </button>
                     </div>
                   </div>
-                ))
-              )}
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Home, Search, CheckCircle2, 
-  Clock, LayoutGrid, Building2
+  Clock, LayoutGrid, Building2, Trash2
 } from 'lucide-react';
 import { Header } from '../../components/admin/Header';
-import { adminGetAllProperties } from '../../services/api';
+import { adminGetAllProperties, deleteProperty } from '../../services/api';
 
 interface PropertyData {
   id: number;
@@ -21,6 +21,7 @@ interface PropertyData {
     id: number;
     image: string;
   }>;
+  has_confirmed_booking?: boolean;
 }
 
 const PropertyManagement: React.FC = () => {
@@ -38,6 +39,20 @@ const PropertyManagement: React.FC = () => {
       setProperties(data);
     } catch (error) {
       console.error('Failed to fetch properties:', error);
+    }
+  };
+
+  const handleDeleteProperty = async (propertyId: number, propertyTitle: string) => {
+    const confirmed = window.confirm(`Are you sure you want to delete "${propertyTitle}"? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      await deleteProperty(propertyId);
+      setProperties(properties.filter(p => p.id !== propertyId));
+      alert("Property deleted successfully!");
+    } catch (error) {
+      console.error("Failed to delete property:", error);
+      alert("Failed to delete property. Please try again.");
     }
   };
 
@@ -156,8 +171,8 @@ const PropertyManagement: React.FC = () => {
                       <h4 className="font-black text-gray-900 text-base mb-1">{property.title}</h4>
                       <p className="text-gray-600 text-xs mb-2">{property.address}, {property.city}</p>
                       <div className="flex items-center gap-3 text-xs">
-                        <span className={`px-3 py-1 rounded-lg font-bold ${property.available ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                          {property.available ? 'Available' : 'Booked'}
+                        <span className={`px-3 py-1 rounded-lg font-bold ${property.has_confirmed_booking ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                          {property.has_confirmed_booking ? 'Booked' : 'Available'}
                         </span>
                         <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-lg font-bold uppercase">
                           {property.property_type}
@@ -170,6 +185,17 @@ const PropertyManagement: React.FC = () => {
                     <div className="text-right">
                       <p className="text-xs text-gray-400 font-bold uppercase">Monthly Rate</p>
                       <p className="text-2xl font-black text-[#A989C8]">NPR {(property.price / 1000).toFixed(0)}K</p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 ml-4">
+                      <button
+                        className="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50 transition-colors"
+                        onClick={() => handleDeleteProperty(property.id, property.title)}
+                        title="Delete Property"
+                      >
+                        <Trash2 size={20} />
+                      </button>
                     </div>
                   </div>
                 </div>

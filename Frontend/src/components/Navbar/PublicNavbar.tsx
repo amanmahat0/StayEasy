@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Home, ChevronDown, LogOut, Settings, LayoutDashboard } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Home, ChevronDown, LogOut, Settings, MessageCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
@@ -7,6 +7,32 @@ export default function PublicNavbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    // Define expected types for the response
+    type Conversation = { unread_count?: number };
+    type ConversationsResponse = { conversations?: Conversation[] };
+    // Fetch unread count from backend
+    fetch(`/api/conversations/${user.id}`)
+      .then((res) => res.json())
+      .then((data: ConversationsResponse) => {
+        // Assume each conversation has unread_count (add this in backend if needed)
+        const conversations = data.conversations || [];
+        const count = conversations.reduce(
+          (sum: number, c: Conversation) => sum + (c.unread_count || 0),
+          0
+        );
+        setUnread(count);
+      })
+      .catch(() => {
+        // ignore errors for now
+      });
+    // Listen for new messages via Socket.IO
+    // (Assume socketService is globally available or import it)
+    // socketService.onMessageReceived(() => setUnread((u) => u + 1));
+  }, [user]);
 
   const role = user?.user_type;
 
@@ -25,28 +51,21 @@ export default function PublicNavbar() {
     <nav className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between h-20">
-
           {/* LOGO */}
           <Link to="/" className="flex items-center gap-3">
             <div className="w-11 h-11 bg-[#A989C8] rounded-xl flex items-center justify-center shadow-md">
               <Home className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold text-gray-800 tracking-tight">
-              StayEasy
-            </span>
+            <span className="text-2xl font-bold text-gray-800">StayEasy</span>
           </Link>
-
           {/* NAV LINKS */}
           <div className="hidden md:flex items-center gap-12">
-
-            {/* LANDLORD NAV */}
             {role === "owner" ? (
               <>
                 <NavItem to="/dashboard" label="Dashboard" />
                 <NavItem to="/properties" label="Properties" />
               </>
             ) : (
-              /* TENANT & GUEST NAV */
               <>
                 <NavItem to="/home" label="Home" />
                 {role === "tenant" && (
@@ -58,13 +77,25 @@ export default function PublicNavbar() {
               </>
             )}
 
-            {/* COMMON LINK */}
             <NavItem to="/about" label="About Us" />
-
           </div>
-
           {/* USER SECTION */}
           <div className="flex items-center gap-4">
+            {/* CHAT ICON (REPLACED MESSAGE TEXT) */}
+            {user && (
+              <Link
+                to="/chat"
+                className="p-2 hover:bg-gray-100 rounded-lg transition relative group"
+                title="Chat"
+              >
+                <MessageCircle className="w-5 h-5 text-gray-700 group-hover:text-[#A989C8]" />
+                {unread > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 font-bold">
+                    {unread}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {user ? (
               <div className="relative">
@@ -85,7 +116,6 @@ export default function PublicNavbar() {
 
                 {isMenuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border py-2 z-50">
-
                     <Link
                       to="/profile"
                       onClick={() => setIsMenuOpen(false)}
@@ -102,7 +132,6 @@ export default function PublicNavbar() {
                       <LogOut size={16} />
                       Logout
                     </button>
-
                   </div>
                 )}
               </div>
@@ -114,26 +143,19 @@ export default function PublicNavbar() {
                 Sign In
               </Link>
             )}
-
           </div>
-
         </div>
       </div>
     </nav>
   );
 }
 
-/* NAV ITEM HELPER */
-interface NavItemProps {
-  to: string;
-  label: string;
-}
-
-function NavItem({ to, label }: NavItemProps) {
+/* NAV ITEM */
+function NavItem({ to, label }: { to: string; label: string }) {
   return (
     <Link
       to={to}
-      className="relative text-gray-700 font-medium hover:text-[#A989C8] transition"
+      className="text-gray-700 font-medium hover:text-[#A989C8] transition"
     >
       {label}
     </Link>

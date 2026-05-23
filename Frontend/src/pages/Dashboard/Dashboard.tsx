@@ -1,54 +1,90 @@
 import { useEffect, useState } from "react";
-import { Plus, Home, Users, TrendingUp, ShieldCheck, Eye } from "lucide-react";
+import { Plus, Home, Users, TrendingUp, ShieldCheck, Eye, Edit, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import PublicNavbar from "../../components/Navbar/PublicNavbar";
 import Footer from "../../components/Footer";
 import { useAuth } from "../../context/AuthContext";
+import { useProperties } from "../../context/PropertyContext";
 
 import StatCard from "../../components/Dashboard/StatCard";
 import QuickActions from "../../components/Dashboard/QuickActions";
 import RecentActivity from "../../components/Dashboard/RecentActivity";
 import ProfileCard from "../../components/Profile/ProfileCard";
-import { getKYCStatus, getLandlordDashboard, getLandlordProperties } from "../../services/api";
-
-interface PropertyData {
-  id: number;
-  title: string;
-  address: string;
-  city: string;
-  property_type: string;
-  price: number;
-  available: boolean;
-  created_at: string;
-  owner: number;
-  description: string;
-  images: Array<{
-    id: number;
-    image: string;
-  }>;
-}
+import { getKYCStatus, getLandlordDashboard, deleteProperty } from "../../services/api";
 
 interface DashboardData {
-  kyc_status: string;
+  kyc_status?: string;
   total_properties: number;
   available_properties: number;
   can_add_property: boolean;
 }
 
+function RecentMessages({ userId }: { userId: number }) {
+  const [messages, setMessages] = useState<any[]>([]);
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`/api/conversations/${userId}`)
+      .then((res) => res.json())
+      .then((data) => setMessages((data.conversations || []).slice(0, 5)));
+  }, [userId]);
+  if (!userId) return null;
+  return (
+    <div className="bg-white rounded-2xl shadow p-4 mb-6">
+      <h3 className="font-bold text-lg mb-2">Recent Messages</h3>
+      {messages.length === 0 ? (
+        <div className="text-gray-400 text-sm">No recent messages</div>
+      ) : (
+        <ul>
+          {messages.map((msg) => {
+            const partnerId = msg.user1_id === userId ? msg.user2_id : msg.user1_id;
+            const partnerName = `User ${partnerId}`;
+            return (
+              <li key={msg.id} className="mb-2">
+                <div className="font-semibold">{partnerName}</div>
+                <div className="text-xs text-gray-500 truncate">{msg.last_message}</div>
+                <div className="text-xs text-gray-400">{new Date(msg.updated_at).toLocaleString()}</div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <div className="mt-2 text-right">
+        <a href="/chat" className="text-[#A989C8] text-sm font-medium hover:underline">View all messages →</a>
+      </div>
+    </div>
+  );
+}
+
 const Dashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { properties, fetchProperties } = useProperties();
   const [kyc, setKyc] = useState<any>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-  const [properties, setProperties] = useState<PropertyData[]>([]);
-  const [loading, setLoading] = useState(true);
 
   const fullName = user ? `${user.first_name}` : "User";
 
+  const handleDeleteProperty = async (propertyId: number, propertyTitle: string) => {
+    const confirmed = window.confirm(`Are you sure you want to delete "${propertyTitle}"? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      await deleteProperty(propertyId);
+      // Refresh properties list
+      await fetchProperties();
+      // Refresh dashboard stats
+      const dashData = await getLandlordDashboard();
+      setDashboard(dashData);
+      alert("Property deleted successfully!");
+    } catch (error) {
+      console.error("Failed to delete property:", error);
+      alert("Failed to delete property. Please try again.");
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true);
       try {
         // Fetch KYC status
         const kycData = await getKYCStatus();
@@ -59,16 +95,13 @@ const Dashboard = () => {
         setDashboard(dashData);
 
         // Fetch landlord properties
-        const propsData = await getLandlordProperties();
-        setProperties(propsData);
+        await fetchProperties();
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
-      } finally {
-        setLoading(false);
       }
     };
     fetchData();
-  }, []);
+  }, [fetchProperties]);
 
   const kycLabel = kyc
     ? kyc.status === "approved"
@@ -172,19 +205,38 @@ const Dashboard = () => {
                           <h3 className="font-bold text-lg text-gray-900">{property.title}</h3>
                           <p className="text-gray-600 text-sm">{property.address}</p>
                           <div className="flex items-center gap-4 mt-3 text-sm">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${property.available ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                              {property.available ? 'Available' : 'Booked'}
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                              property.has_confirmed_booking
+                                ? 'bg-orange-100 text-orange-700' 
+                                : 'bg-green-100 text-green-700'
+                            }`}>
+                              {property.has_confirmed_booking ? 'Booked' : 'Available'}
                             </span>
                             <span className="text-gray-700 font-semibold">NPR {property.price.toLocaleString()}/month</span>
                           </div>
                         </div>
                         {/* Action */}
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-2">
                           <button
                             className="text-[#A989C8] hover:text-[#9b7bb8] p-2 rounded-lg hover:bg-gray-100"
                             onClick={() => navigate(`/property/${property.id}`)}
+                            title="View"
                           >
                             <Eye size={20} />
+                          </button>
+                          <button
+                            className="text-orange-500 hover:text-orange-700 p-2 rounded-lg hover:bg-orange-50"
+                            onClick={() => navigate(`/add-property/${property.id}`)}
+                            title="Edit"
+                          >
+                            <Edit size={20} />
+                          </button>
+                          <button
+                            className="text-red-500 hover:text-red-700 p-2 rounded-lg hover:bg-red-50"
+                            onClick={() => handleDeleteProperty(property.id, property.title)}
+                            title="Delete"
+                          >
+                            <Trash2 size={20} />
                           </button>
                         </div>
                       </div>
@@ -198,6 +250,7 @@ const Dashboard = () => {
             <div className="space-y-6">
               <QuickActions />
               <RecentActivity />
+              {user && <RecentMessages userId={user.id} />}
             </div>
           </div>
         </div>

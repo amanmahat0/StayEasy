@@ -1,5 +1,5 @@
 // src/context/AuthContext.tsx
-import React, { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect } from "react";
 import API from "../services/api"; // Axios instance
 
 interface User {
@@ -19,29 +19,53 @@ interface AuthContextType {
   login: (profileData?: User) => void;
   logout: () => void;
   fetchProfile: () => Promise<void>;
+  backendAvailable: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+export { AuthContext };
+
 export const AuthProvider = ({ children }: any) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [backendAvailable, setBackendAvailable] = useState(true);
 
   // Fetch user profile from backend
   const fetchProfile = async () => {
     try {
       const token = localStorage.getItem("access");
-      if (!token) throw new Error("No token found");
+      if (!token) {
+        console.log("ℹ️  No auth token found - user not logged in");
+        setBackendAvailable(true);
+        return;
+      }
 
       const res = await API.get("/profile/", {
         headers: { Authorization: `Bearer ${token}` },
       });
       setUser(res.data);
       setIsLoggedIn(true);
-    } catch (err) {
-      console.error("Failed to fetch profile:", err);
-      setUser(null);
-      setIsLoggedIn(false);
+      setBackendAvailable(true);
+    } catch (err: any) {
+      // Check if it's a network error (backend not running)
+      if (err.code === "ECONNREFUSED" || err.message === "Network Error" || !err.response) {
+        console.warn("⚠️  Backend server is not available. Operating in limited mode.");
+        setBackendAvailable(false);
+        setUser(null);
+        setIsLoggedIn(false);
+      } else if (err.response?.status === 401) {
+        console.log("ℹ️  Unauthorized - token invalid");
+        localStorage.removeItem("access");
+        setUser(null);
+        setIsLoggedIn(false);
+        setBackendAvailable(true);
+      } else {
+        console.error("Failed to fetch profile:", err.message);
+        setUser(null);
+        setIsLoggedIn(false);
+        setBackendAvailable(true);
+      }
     }
   };
 
@@ -71,7 +95,7 @@ export const AuthProvider = ({ children }: any) => {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, user, login, logout, fetchProfile }}>
+    <AuthContext.Provider value={{ isLoggedIn, user, login, logout, fetchProfile, backendAvailable }}>
       {children}
     </AuthContext.Provider>
   );

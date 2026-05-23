@@ -13,6 +13,7 @@ interface PropertyData {
   title: string;
   price: number;
   available: boolean;
+  status?: string;
   property_type: string;
 }
 
@@ -44,7 +45,7 @@ const AdminDashboard: React.FC = () => {
   }, []);
 
   const pendingKyc = kycList.filter(k => k.status === 'pending');
-  const totalRevenue = properties.reduce((sum, p) => sum + (p.price * 0.1), 0); // Assuming 10% commission
+  // Use the 'available' flag from PropertyData: available === true means the property is not booked
   const availableProps = properties.filter(p => p.available).length;
 
   return (

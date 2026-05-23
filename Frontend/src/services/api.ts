@@ -134,6 +134,29 @@ export const createProperty = async (formData: FormData) => {
   }
 };
 
+// Uses landlord endpoint for PATCH (for landlord-created properties)
+export const updateProperty = async (id: number, data: any) => {
+  try {
+    const response = await API.patch(`landlord/properties/${id}/`, data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Property update error:", error);
+    throw error;
+  }
+};
+
+export const deleteProperty = async (id: number) => {
+  try {
+    const response = await API.delete(`landlord/properties/${id}/delete/`);
+    return response.data;
+  } catch (error) {
+    console.error("Property delete error:", error);
+    throw error;
+  }
+};
+
 // ================= LANDLORD APIs =================
 export const getLandlordProperties = async () => {
   try {
@@ -145,10 +168,74 @@ export const getLandlordProperties = async () => {
   }
 };
 
+export const getLandlordPropertyDetail = async (propertyId: number) => {
+  try {
+    const response = await API.get(`landlord/properties/${propertyId}/`);
+    return response.data;
+  } catch (error) {
+    console.error("Landlord property detail fetch error:", error);
+    throw error;
+  }
+};
+
+export const createLandlordProperty = async (formData: FormData) => {
+  try {
+    const response = await API.post("landlord/properties/create/", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Create property error:", error);
+    throw error;
+  }
+};
+
+export const updateLandlordProperty = async (propertyId: number, data: any) => {
+  try {
+    const response = await API.patch(`landlord/properties/${propertyId}/update/`, data);
+    return response.data;
+  } catch (error) {
+    console.error("Update property error:", error);
+    throw error;
+  }
+};
+
+export const deleteLandlordProperty = async (propertyId: number) => {
+  try {
+    const response = await API.delete(`landlord/properties/${propertyId}/delete/`);
+    return response.data;
+  } catch (error) {
+    console.error("Delete property error:", error);
+    throw error;
+  }
+};
+
+export const getLandlordPropertyBookings = async (propertyId: number) => {
+  try {
+    const response = await API.get(`landlord/properties/${propertyId}/bookings/`);
+    return response.data;
+  } catch (error) {
+    console.error("Landlord property bookings fetch error:", error);
+    throw error;
+  }
+};
+
 export const getLandlordDashboard = async () => {
   try {
-    const response = await API.get("landlord/dashboard/");
-    return response.data;
+    // Get all landlord properties and derive stats
+    const properties = await getLandlordProperties();
+    const totalProperties = Array.isArray(properties) ? properties.length : 0;
+    const availableProperties = Array.isArray(properties) 
+      ? properties.filter((p: any) => p.available === true).length 
+      : 0;
+    
+    return {
+      total_properties: totalProperties,
+      available_properties: availableProperties,
+      can_add_property: true, // Based on your backend logic
+    };
   } catch (error) {
     console.error("Landlord dashboard fetch error:", error);
     throw error;
@@ -234,6 +321,151 @@ export const cancelBooking = async (id: number) => {
     return response.data;
   } catch (error) {
     console.error("Booking cancel error:", error);
+    throw error;
+  }
+};
+
+// ================= FAVORITE APIs =================
+export const getUserFavorites = async () => {
+  try {
+    const response = await API.get("favorites/");
+    return response.data;
+  } catch (error) {
+    console.error("User favorites fetch error:", error);
+    return [];
+  }
+};
+
+export const addFavorite = async (propertyId: number) => {
+  try {
+    const response = await API.post("favorites/toggle/", {
+      property: propertyId,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Add favorite error:", error);
+    throw error;
+  }
+};
+
+export const removeFavorite = async (propertyId: number) => {
+  try {
+    const response = await API.delete("favorites/toggle/", {
+      data: { property_id: propertyId },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Remove favorite error:", error);
+    throw error;
+  }
+};
+
+// ================= VIEWED PROPERTY APIs =================
+export const getViewedProperties = async () => {
+  try {
+    const response = await API.get("viewed-properties/");
+    return response.data;
+  } catch (error) {
+    console.error("Viewed properties fetch error:", error);
+    return [];
+  }
+};
+
+export const trackPropertyView = async (propertyId: number) => {
+  try {
+    const response = await API.post("view-property/", {
+      property_id: propertyId,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Track view error:", error);
+    throw error;
+  }
+};
+
+// ================= CHAT APIs =================
+// Get all chats for logged-in user
+export const getUserChats = async () => {
+  try {
+    const response = await API.get("chats/");
+    return response.data;
+  } catch (error) {
+    console.error("User chats fetch error:", error);
+    return [];
+  }
+};
+
+// Get all chats for logged-in landlord
+export const getLandlordChats = async () => {
+  try {
+    const response = await API.get("landlord/chats/");
+    return response.data;
+  } catch (error) {
+    console.error("Landlord chats fetch error:", error);
+    return [];
+  }
+};
+
+// Get specific chat with all messages
+export const getChatDetail = async (chatId: number) => {
+  try {
+    const response = await API.get(`chats/${chatId}/`);
+    return response.data;
+  } catch (error) {
+    console.error("Chat detail fetch error:", error);
+    throw error;
+  }
+};
+
+// Create a new chat
+export const createChat = async (landlordId: number, propertyId: number, subject?: string) => {
+  try {
+    const response = await API.post("chats/create/", {
+      landlord: landlordId,
+      property: propertyId,
+      subject: subject || "",
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Chat create error:", error);
+    throw error;
+  }
+};
+
+// Send message to a chat
+export const sendMessage = async (chatId: number, content: string) => {
+  try {
+    const response = await API.post(`chats/${chatId}/send-message/`, {
+      content,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Send message error:", error);
+    throw error;
+  }
+};
+
+// Get all messages in a chat
+export const getChatMessages = async (chatId: number) => {
+  try {
+    const response = await API.get(`chats/${chatId}/messages/`);
+    return response.data;
+  } catch (error) {
+    console.error("Get chat messages error:", error);
+    return [];
+  }
+};
+
+// Start chat from property view (quick chat)
+export const startChatFromProperty = async (propertyId: number, message?: string) => {
+  try {
+    const response = await API.post("chats/start-from-property/", {
+      property_id: propertyId,
+      message: message || "",
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Start chat from property error:", error);
     throw error;
   }
 };

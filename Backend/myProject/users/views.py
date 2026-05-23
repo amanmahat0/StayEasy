@@ -8,8 +8,10 @@ from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from django.utils import timezone
 from django.core.mail import send_mail
+from django.db.models import Q
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .models import Profile, KYC, Property, PropertyImage, Booking
+from rest_framework_simplejwt.tokens import RefreshToken
+from .models import Profile, KYC, Property, PropertyImage, Booking, Favorite, ViewedProperty, LandlordUser
 from .serializers import (
     RegisterSerializer,
     VerifyEmailSerializer,
@@ -22,8 +24,15 @@ from .serializers import (
     BookingSerializer,
     BookingDetailSerializer,
     BookingCreateSerializer,
+    FavoriteSerializer,
+    FavoriteCreateSerializer,
+    ViewedPropertySerializer,
+    LandlordRegisterSerializer,
+    LandlordLoginSerializer,
+    LandlordSerializer,
 )
 from .permissions import IsAdminUser
+from .services.esewa_service import EsewaPaymentService, create_esewa_payment_link
 from rest_framework.views import APIView
 from django.db import transaction
 
@@ -92,10 +101,271 @@ class VerifyEmailView(views.APIView):
         return Response({"error": "Invalid or expired token"}, status=400)
 
 
+# =====================================================
+# LANDLORD AUTHENTICATION VIEWS
+# =====================================================
+
+# ----------------------
+# LANDLORD REGISTER
+# ----------------------
+class LandlordRegisterView(generics.CreateAPIView):
+    queryset = LandlordUser.objects.all()
+    serializer_class = LandlordRegisterSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def perform_create(self, serializer):
+        landlord = serializer.save()
+        # Email verification can be added here if needed
+
+
+# ----------------------
+# LANDLORD LOGIN
+# ----------------------
+class LandlordLoginView(views.APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = LandlordLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data.get("email")
+        password = serializer.validated_data.get("password")
+
+        try:
+            landlord = LandlordUser.objects.get(email__iexact=email)
+        except LandlordUser.DoesNotExist:
+            return Response(
+                {"error": "Invalid email or password"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # Check password
+        from django.contrib.auth.hashers import check_password
+        if not check_password(password, landlord.password):
+            return Response(
+                {"error": "Invalid email or password"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if not landlord.is_active:
+            return Response(
+                {"error": "Account is inactive"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        # Generate JWT tokens manually for LandlordUser
+        # We'll use a custom token approach
+        from rest_framework_simplejwt.tokens import RefreshToken
+        
+        refresh = RefreshToken()
+        refresh.payload.update({
+            'landlord_id': landlord.id,
+            'email': landlord.email,
+            'name': landlord.name,
+            'type': 'landlord',
+        })
+
+        return Response({
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "landlord": {
+                "id": landlord.id,
+                "email": landlord.email,
+                "name": landlord.name,
+                "business_name": landlord.business_name,
+                "phone": landlord.phone,
+            }
+        }, status=status.HTTP_200_OK)
+
+
+# ----------------------
+# LANDLORD PROFILE
+# ----------------------
+class LandlordProfileView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # Extract landlord_id from token
+        landlord_id = request.auth.payload.get('landlord_id')
+        
+        if not landlord_id:
+            return Response(
+                {"error": "Not a landlord account"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            landlord = LandlordUser.objects.get(id=landlord_id)
+            serializer = LandlordSerializer(landlord)
+            return Response(serializer.data)
+        except LandlordUser.DoesNotExist:
+            return Response(
+                {"error": "Landlord not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
+# =====================================================
+# LANDLORD PROPERTY MANAGEMENT VIEWS
+# =====================================================
+
+# ----------------------
+# LANDLORD CREATE PROPERTY
+# ----------------------
+class LandlordPropertyCreateView(generics.CreateAPIView):
+    serializer_class = PropertyCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def perform_create(self, serializer):
+        # Try to get landlord from JWT payload, fallback to authenticated user, fallback to email match
+        payload = getattr(getattr(self.request, 'auth', None), 'payload', None)
+        landlord = None
+
+        # 1. Try landlord_id from JWT
+        landlord_id = None
+        if payload and 'landlord_id' in payload:
+            landlord_id = payload['landlord_id']
+            try:
+                landlord = LandlordUser.objects.get(id=landlord_id)
+            except LandlordUser.DoesNotExist:
+                landlord = None
+
+        # 2. Fallback: authenticated user with LandlordUser entry (by email)
+        if not landlord and hasattr(self.request, 'user') and self.request.user.is_authenticated:
+            try:
+                landlord = LandlordUser.objects.get(email__iexact=self.request.user.email)
+            except LandlordUser.DoesNotExist:
+                landlord = None
+
+        # 3. Fallback: any LandlordUser with same email as provided in payload (if present)
+        if not landlord and payload and 'email' in payload:
+            try:
+                landlord = LandlordUser.objects.get(email__iexact=payload['email'])
+            except LandlordUser.DoesNotExist:
+                landlord = None
+
+        # If landlord found, save with landlord
+        if landlord:
+            serializer.save(landlord=landlord)
+            return
+
+        # If not, fallback to normal Django user as owner
+        user = getattr(self.request, 'user', None)
+        if user and user.is_authenticated:
+            serializer.save(owner=user, landlord=None)
+            return
+
+        # If neither, raise error
+        raise ValidationError({"error": "Not authenticated as landlord or user. (DEBUG: payload=%s)" % payload})
+
+
+# ----------------------
+# LANDLORD LIST/RETRIEVE PROPERTIES
+# ----------------------
+class LandlordPropertyListView(generics.ListAPIView):
+    serializer_class = PropertySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        landlord_id = self.request.auth.payload.get('landlord_id')
+        if not landlord_id:
+            return Property.objects.none()
+        return Property.objects.filter(landlord_id=landlord_id).order_by('-created_at')
+
+
+class LandlordPropertyDetailView(generics.RetrieveAPIView):
+    serializer_class = PropertySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        landlord_id = self.request.auth.payload.get('landlord_id')
+        if not landlord_id:
+            return Property.objects.none()
+        return Property.objects.filter(landlord_id=landlord_id)
+
+
+# ----------------------
+# LANDLORD UPDATE PROPERTY
+# ----------------------
+class LandlordPropertyUpdateView(generics.UpdateAPIView):
+    serializer_class = PropertyCreateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+    http_method_names = ['patch', 'put']
+
+    def get_queryset(self):
+        landlord_id = self.request.auth.payload.get('landlord_id')
+        if not landlord_id:
+            return Property.objects.none()
+        return Property.objects.filter(landlord_id=landlord_id)
+
+    def perform_update(self, serializer):
+        # Always ensure landlord is not changed
+        landlord_id = self.request.auth.payload.get('landlord_id')
+        if not landlord_id:
+            raise ValidationError({"error": "Not a landlord account. Please log in as a landlord."})
+        try:
+            landlord = LandlordUser.objects.get(id=landlord_id)
+        except LandlordUser.DoesNotExist:
+            raise ValidationError({"error": "Landlord not found. Please contact support."})
+        serializer.save(landlord=landlord)
+
+
+# ----------------------
+# LANDLORD DELETE PROPERTY
+# ----------------------
+class LandlordPropertyDeleteView(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        landlord_id = self.request.auth.payload.get('landlord_id')
+        if not landlord_id:
+            return Property.objects.none()
+        return Property.objects.filter(landlord_id=landlord_id)
+
+
+# ----------------------
+# LANDLORD VIEW BOOKINGS FOR PROPERTY (status only)
+# ----------------------
+class LandlordPropertyBookingsView(generics.ListAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'property_id'
+    lookup_url_kwarg = 'property_id'
+
+    def get(self, request, *args, **kwargs):
+        landlord_id = request.auth.payload.get('landlord_id')
+        property_id = kwargs.get('property_id')
+
+        if not landlord_id:
+            return Response(
+                {"error": "Not a landlord account"},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        # Verify property belongs to landlord
+        try:
+            property_obj = Property.objects.get(id=property_id, landlord_id=landlord_id)
+        except Property.DoesNotExist:
+            return Response(
+                {"error": "Property not found or access denied"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get bookings for this property (only return dates and status, no user personal data)
+        bookings = Booking.objects.filter(property=property_obj).values(
+            'id', 'check_in', 'check_out', 'status', 'payment_status', 'total_price', 'created_at'
+        ).order_by('-created_at')
+
+        return Response(list(bookings))
+
+
 # ----------------------
 # LOGIN WITH JWT
 # ----------------------
 class CustomTokenObtainPairView(TokenObtainPairView):
+
     def post(self, request, *args, **kwargs):
         email_or_username = request.data.get("email")
         password = request.data.get("password")
@@ -111,8 +381,9 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         profile, _ = Profile.objects.get_or_create(user=user)
 
         # Admin bypasses email verification
-        if not user.is_superuser and not profile.email_verified:
-            return Response({"error": "Email not verified"}, status=403)
+        # TODO: In production, enforce email verification
+        # if not user.is_superuser and not profile.email_verified:
+        #     return Response({"error": "Email not verified"}, status=403)
 
         # Attach username for JWT authenticate
         request.data["username"] = user.username
@@ -209,8 +480,14 @@ class AdminKYCListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated, IsAdminUser]
 
     def get_queryset(self):
-        """Filter by status if provided in query params"""
-        queryset = KYC.objects.all().order_by('-submitted_at')
+        """Filter by status if provided in query params, exclude test users"""
+        # Exclude test users: testuser, testuser2, and test* patterns
+        queryset = KYC.objects.exclude(
+            user__username__in=['testuser', 'testuser2', 'test', 'test23', 'test00', 'test001', 'test55']
+        ).exclude(
+            user__username__istartswith='test'
+        ).order_by('-submitted_at')
+        
         status_filter = self.request.query_params.get('status')
         
         if status_filter:
@@ -276,10 +553,17 @@ class AdminKYCStatsView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsAdminUser]
 
     def get(self, request):
-        total = KYC.objects.count()
-        pending = KYC.objects.filter(status='pending').count()
-        approved = KYC.objects.filter(status='approved').count()
-        rejected = KYC.objects.filter(status='rejected').count()
+        # Exclude test users from stats
+        kyc_queryset = KYC.objects.exclude(
+            user__username__in=['testuser', 'testuser2', 'test', 'test23', 'test00', 'test001', 'test55']
+        ).exclude(
+            user__username__istartswith='test'
+        )
+        
+        total = kyc_queryset.count()
+        pending = kyc_queryset.filter(status='pending').count()
+        approved = kyc_queryset.filter(status='approved').count()
+        rejected = kyc_queryset.filter(status='rejected').count()
 
         return Response({
             "total": total,
@@ -293,14 +577,15 @@ class AdminKYCStatsView(APIView):
 # PROPERTY LIST - FOR ALL USERS
 # ----------------------
 class PropertyListView(generics.ListAPIView):
-    """Get all available properties (public)"""
-    queryset = Property.objects.filter(available=True).order_by('-created_at')
+    """Get all published properties (public homepage)"""
+    queryset = Property.objects.filter(status='published').order_by('-created_at')
     serializer_class = PropertySerializer
     permission_classes = [permissions.AllowAny]
 
     def get_queryset(self):
-        """Filter by property_type if provided"""
-        queryset = Property.objects.filter(available=True).order_by('-created_at')
+        """Filter by property_type and/or status if provided"""
+        # Only show published properties to public users
+        queryset = Property.objects.filter(status='published').order_by('-created_at')
         property_type = self.request.query_params.get('type')
         
         if property_type:
@@ -318,6 +603,71 @@ class PropertyDetailView(generics.RetrieveAPIView):
     serializer_class = PropertySerializer
     permission_classes = [permissions.AllowAny]
     lookup_field = 'id'
+
+
+# ----------------------
+# CHECK BOOKING AVAILABILITY
+# ----------------------
+class CheckBookingAvailabilityView(APIView):
+    """Check if a property is available for given dates"""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        """
+        Check if property is available
+        Request: {
+            "property_id": 1,
+            "check_in": "2026-05-10",
+            "check_out": "2026-05-15"
+        }
+        """
+        try:
+            property_id = request.data.get('property_id')
+            check_in_str = request.data.get('check_in')
+            check_out_str = request.data.get('check_out')
+            
+            if not all([property_id, check_in_str, check_out_str]):
+                return Response(
+                    {"error": "Missing required fields: property_id, check_in, check_out"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            from datetime import datetime
+            check_in = datetime.strptime(check_in_str, '%Y-%m-%d').date()
+            check_out = datetime.strptime(check_out_str, '%Y-%m-%d').date()
+            
+            # Check for overlapping active bookings
+            conflicts = Booking.objects.filter(
+                property_id=property_id,
+                status__in=['pending', 'processing', 'confirmed']
+            ).filter(
+                Q(check_in__lt=check_out) & Q(check_out__gt=check_in)
+            )
+            
+            if conflicts.exists():
+                conflicting_booking = conflicts.first()
+                return Response({
+                    "available": False,
+                    "message": f"Property is booked from {conflicting_booking.check_in} to {conflicting_booking.check_out}",
+                    "booked_from": str(conflicting_booking.check_in),
+                    "booked_to": str(conflicting_booking.check_out),
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                "available": True,
+                "message": "Property is available for these dates",
+            }, status=status.HTTP_200_OK)
+            
+        except ValueError as e:
+            return Response(
+                {"error": f"Invalid date format. Use YYYY-MM-DD: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 # ----------------------
@@ -355,6 +705,42 @@ class LandlordPropertyListView(generics.ListAPIView):
     def get_queryset(self):
         """Get only properties owned by the current user"""
         return Property.objects.filter(owner=self.request.user).order_by('-created_at')
+
+
+# ----------------------
+# PROPERTY UPDATE
+# ----------------------
+class PropertyUpdateView(generics.UpdateAPIView):
+    """Landlord: Update their own property"""
+    serializer_class = PropertySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        """Only allow landlords to update their own properties"""
+        return Property.objects.filter(owner=self.request.user)
+
+    def perform_update(self, serializer):
+        """Ensure owner cannot be changed"""
+        serializer.save(owner=self.request.user)
+
+
+# ----------------------
+# PROPERTY DELETE
+# ----------------------
+class PropertyDeleteView(generics.DestroyAPIView):
+    """Landlord: Delete their own property"""
+    serializer_class = PropertySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        """Only allow landlords to delete their own properties"""
+        return Property.objects.filter(owner=self.request.user)
+
+    def perform_destroy(self, instance):
+        """Delete property and associated images"""
+        instance.delete()
 
 
 # ----------------------
@@ -396,17 +782,53 @@ class BookingCreateView(generics.CreateAPIView):
     serializer_class = BookingCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def perform_create(self, serializer):
-        # User can only book if they have approved KYC
-        user = self.request.user
+    def create(self, request, *args, **kwargs):
+        """Override create to provide better error messages"""
         try:
-            kyc = user.kyc
-            if kyc.status != "approved":
-                raise ValidationError({"error": "Your KYC must be approved to make bookings"})
-        except KYC.DoesNotExist:
-            raise ValidationError({"error": "Please submit and verify your KYC first"})
+            return super().create(request, *args, **kwargs)
+        except ValidationError as e:
+            return Response(e.detail, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer.save(user=user, status='pending')
+    def perform_create(self, serializer):
+        # Save booking with current user
+        user = self.request.user
+        
+        # Check for duplicate/overlapping bookings
+        property_obj = serializer.validated_data.get('property')
+        check_in = serializer.validated_data.get('check_in')
+        check_out = serializer.validated_data.get('check_out')
+        
+        # Check if user already has ANY booking for this property with overlapping dates
+        # or exact same dates - prevent all cases
+        existing = Booking.objects.filter(
+            property=property_obj,
+            status__in=['pending', 'processing', 'confirmed']  # Check active bookings
+        ).filter(
+            # Check for overlapping date ranges
+            # Overlap occurs if: check_in < existing.check_out AND check_out > existing.check_in
+            Q(check_in__lt=check_out) & Q(check_out__gt=check_in)
+        )
+        
+        if existing.exists():
+            overlapping_booking = existing.first()
+            raise ValidationError({
+                "error": f"This property is already booked from {overlapping_booking.check_in} to {overlapping_booking.check_out}. Please select different dates."
+            })
+        
+        # Additional check: prevent user from booking same property twice (any dates) with active bookings
+        user_existing = Booking.objects.filter(
+            user=user,
+            property=property_obj,
+            status__in=['pending', 'processing', 'confirmed']
+        ).exists()
+        
+        if user_existing:
+            raise ValidationError({
+                "error": "You already have an active booking for this property. Please complete or cancel it first."
+            })
+        
+        booking = serializer.save(user=user, status='pending', payment_status='unpaid')
+
 
 
 # ----------------------
@@ -435,6 +857,32 @@ class LandlordBookingListView(generics.ListAPIView):
         user = self.request.user
         properties = Property.objects.filter(owner=user)
         return Booking.objects.filter(property__in=properties).order_by('-created_at')
+
+
+# ----------------------
+# LANDLORD - TENANT PAYMENT HISTORY
+# ----------------------
+class LandlordTenantPaymentHistoryView(generics.ListAPIView):
+    """Landlord: Get payment history for a specific tenant's bookings"""
+    serializer_class = BookingDetailSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """Get bookings (with payment info) for a specific tenant and landlord's properties"""
+        user = self.request.user
+        tenant_id = self.kwargs.get('tenant_id')
+        
+        # Get all properties owned by the current user
+        properties = Property.objects.filter(owner=user)
+        
+        # Filter bookings by:
+        # 1. Tenant ID (user_id)
+        # 2. Landlord's properties
+        # Order by newest first
+        return Booking.objects.filter(
+            user_id=tenant_id,
+            property__in=properties
+        ).order_by('-created_at')
 
 
 # ----------------------
@@ -469,3 +917,496 @@ class BookingDetailView(generics.RetrieveUpdateDestroyAPIView):
             raise ValidationError({"error": "You can only cancel your own bookings"})
         instance.status = 'cancelled'
         instance.save()
+
+
+# ----------------------
+# PAYMENT PROCESSING (ESEWA 2.0 - EPAY2)
+# ----------------------
+class InitiateEsewaPaymentView(views.APIView):
+    """Initiate eSewa 2.0 payment for a booking"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """
+        Initiate eSewa payment
+        Expected body: {
+            "booking_id": 1,
+            "return_url": "https://yourapp.com/payment-success"
+        }
+        """
+        try:
+            booking_id = request.data.get('booking_id')
+            return_url = request.data.get('return_url')
+            
+            if not booking_id or not return_url:
+                return Response(
+                    {'error': 'booking_id and return_url are required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get the booking
+            booking = Booking.objects.get(id=booking_id, user=request.user)
+            
+            # Initiate payment with eSewa 2.0
+            payment_data = create_esewa_payment_link(booking, return_url)
+            
+            return Response({
+                'success': True,
+                'message': 'Payment initiated successfully',
+                'payment_data': payment_data,
+                'esewa_url': 'https://rc-epay.esewa.com.np/api/epay/main/v2/form',
+            }, status=status.HTTP_200_OK)
+            
+        except Booking.DoesNotExist:
+            return Response(
+                {'error': 'Booking not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class VerifyEsewaPaymentView(views.APIView):
+    """Verify eSewa 2.0 payment response with SHA256 signature verification"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        """
+        Verify eSewa payment response
+        Expected body: {
+            "oid": "transaction_id_from_esewa",
+            "refId": "reference_id",
+            "amount": "amount_in_paisa",
+            "scd": "merchant_code",
+            "signature": "base64_encoded_signature"
+        }
+        """
+        try:
+            # Extract eSewa response data
+            response_data = {
+                'oid': request.data.get('oid'),
+                'refId': request.data.get('refId'),
+                'amount': request.data.get('amount'),
+                'scd': request.data.get('scd'),
+                'signature': request.data.get('signature'),
+            }
+            
+            # Validate required fields
+            required_fields = ['oid', 'refId', 'amount', 'scd', 'signature']
+            if not all(response_data.get(field) for field in required_fields):
+                return Response(
+                    {'error': 'Missing required payment fields'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Verify payment with eSewa service
+            esewa_service = EsewaPaymentService()
+            is_valid, message, transaction_data = esewa_service.verify_payment(response_data)
+            
+            if not is_valid:
+                return Response(
+                    {
+                        'success': False,
+                        'error': message,
+                        'message': 'Payment verification failed',
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Extract booking ID from refId (format: booking_{id}_{timestamp})
+            try:
+                booking_id = int(response_data['refId'].split('_')[1])
+            except (IndexError, ValueError):
+                return Response(
+                    {'error': 'Invalid reference ID format'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get and update booking
+            booking = Booking.objects.get(id=booking_id, user=request.user)
+            
+            # Update booking with payment details
+            booking.esewa_transaction_id = response_data.get('oid')
+            booking.esewa_ref_id = response_data.get('refId')
+            booking.payment_status = 'completed'
+            booking.payment_method = 'esewa'
+            booking.status = 'processing'  # Payment successful, now processing
+            booking.save()
+            
+            return Response({
+                'success': True,
+                'message': 'Payment verified successfully',
+                'booking_id': booking.id,
+                'transaction_id': response_data.get('oid'),
+                'payment_status': 'completed',
+                'booking_status': 'processing',
+            }, status=status.HTTP_200_OK)
+            
+        except Booking.DoesNotExist:
+            return Response(
+                {'error': 'Booking not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            print(f"Payment verification error: {str(e)}")
+            return Response(
+                {'error': f'Verification error: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+# Keep ProcessPaymentView as alias for backwards compatibility
+class ProcessPaymentView(VerifyEsewaPaymentView):
+    """Legacy endpoint - use VerifyEsewaPaymentView instead"""
+    pass
+
+
+# =====================================================
+# ADMIN - BOOKING MANAGEMENT
+# =====================================================
+
+# ----------------------
+# ADMIN - BOOKING LIST
+# ----------------------
+class AdminBookingListView(generics.ListAPIView):
+    """Admin: Get all bookings with full details"""
+    serializer_class = BookingDetailSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+    def get_queryset(self):
+        """Only admins can access this"""
+        user = self.request.user
+        if not (user.is_superuser or user.profile.role == 'admin'):
+            return Booking.objects.none()
+        return Booking.objects.select_related('user', 'property').order_by('-created_at')
+
+
+# ----------------------
+# ADMIN - BOOKING UPDATE STATUS
+# ----------------------
+class AdminBookingUpdateStatusView(generics.UpdateAPIView):
+    """Admin: Update booking status"""
+    serializer_class = BookingSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+    lookup_field = 'id'
+
+    def get_queryset(self):
+        """Only admins can access"""
+        user = self.request.user
+        if not (user.is_superuser or user.profile.role == 'admin'):
+            return Booking.objects.none()
+        return Booking.objects.all()
+
+    def perform_update(self, serializer):
+        """Update booking status"""
+        user = self.request.user
+        if not (user.is_superuser or user.profile.role == 'admin'):
+            raise ValidationError({"error": "Only admins can update booking status"})
+        
+        booking = self.get_object()
+        new_status = self.request.data.get('status')
+        
+        if new_status not in ['confirmed', 'completed', 'cancelled']:
+            raise ValidationError({"error": "Invalid status"})
+        
+        print(f"\n📍 [ADMIN BOOKING] Admin {user.username} updating booking {booking.id}")
+        print(f"📍 [ADMIN BOOKING] Status: {booking.status} → {new_status}")
+        
+        serializer.save(status=new_status)
+        print(f"✅ [ADMIN BOOKING] Booking {booking.id} updated to {new_status}")
+
+
+# ----------------------
+# USER - BOOKING CANCEL
+# ----------------------
+class BookingCancelView(APIView):
+    """User: Cancel their own booking"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, id):
+        """Cancel a booking"""
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        user = request.user
+        
+        try:
+            booking = Booking.objects.get(id=id, user=user)
+        except Booking.DoesNotExist:
+            return Response(
+                {"error": "Booking not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Can only cancel pending, processing, or confirmed bookings
+        if booking.status not in ['pending', 'processing', 'confirmed']:
+            return Response(
+                {"error": f"Cannot cancel a {booking.status} booking"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if booking was recently cancelled (within 24 hours) - prevent instant rebooking abuse
+        if booking.status == 'cancelled' and booking.cancelled_at:
+            time_since_cancel = timezone.now() - booking.cancelled_at
+            if time_since_cancel < timedelta(hours=24):
+                return Response(
+                    {"error": "You must wait 24 hours before rebooking the same property after cancellation"},
+                    status=status.HTTP_429_TOO_MANY_REQUESTS
+                )
+        
+        print(f"\n📍 [CANCEL BOOKING] User {user.username} cancelling booking {booking.id}")
+        booking.status = 'cancelled'
+        booking.cancelled_at = timezone.now()
+        booking.save()
+        print(f"✅ [CANCEL BOOKING] Booking {booking.id} cancelled")
+        
+        serializer = BookingDetailSerializer(booking)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# =====================================================
+# ADMIN - USER MANAGEMENT
+# =====================================================
+
+# ----------------------
+# ADMIN - USERS LIST (Tenants)
+# ----------------------
+class AdminUserListView(generics.ListAPIView):
+    """Admin: Get all users (tenants only)"""
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+    def get_queryset(self):
+        """Only admins can access"""
+        user = self.request.user
+        if not (user.is_superuser or user.profile.role == 'admin'):
+            return User.objects.none()
+        
+        # Get users with user_type='tenant' (exclude admins)
+        return User.objects.filter(
+            profile__user_type='tenant'
+        ).exclude(
+            profile__role='admin'
+        ).select_related('profile').order_by('-date_joined')
+
+    def list(self, request, *args, **kwargs):
+        """Return formatted user data"""
+        user = request.user
+        
+        # Check if user is authenticated
+        if not user.is_authenticated:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Check if user is admin (superuser or has admin role)
+        try:
+            if not (user.is_superuser or user.profile.role == 'admin'):
+                return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+        except AttributeError:
+            return Response({"error": "User profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        queryset = self.get_queryset()
+        users_data = []
+        
+        for u in queryset:
+            users_data.append({
+                'id': u.id,
+                'username': u.username,
+                'email': u.email,
+                'first_name': u.first_name,
+                'last_name': u.last_name,
+                'user_type': u.profile.user_type,
+                'role': u.profile.role,
+                'email_verified': u.profile.email_verified,
+                'date_joined': u.date_joined,
+                'bookings_count': u.bookings.count(),
+            })
+        
+        return Response({
+            'count': len(users_data),
+            'results': users_data
+        })
+
+
+# ----------------------
+# ADMIN - LANDLORDS LIST
+# ----------------------
+class AdminLandlordListView(generics.ListAPIView):
+    """Admin: Get all landlords"""
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+    def get_queryset(self):
+        """Only admins can access"""
+        user = self.request.user
+        if not (user.is_superuser or user.profile.role == 'admin'):
+            return User.objects.none()
+        
+        # Get users with user_type='owner' (landlords) but exclude admins
+        return User.objects.filter(
+            profile__user_type='owner'
+        ).exclude(
+            profile__role='admin'
+        ).select_related('profile').order_by('-date_joined')
+
+    def list(self, request, *args, **kwargs):
+        """Return formatted landlord data"""
+        user = request.user
+        
+        # Check if user is authenticated
+        if not user.is_authenticated:
+            return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Check if user is admin (superuser or has admin role)
+        try:
+            if not (user.is_superuser or user.profile.role == 'admin'):
+                return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+        except AttributeError:
+            return Response({"error": "User profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        queryset = self.get_queryset()
+        landlords_data = []
+        
+        for u in queryset:
+            landlords_data.append({
+                'id': u.id,
+                'username': u.username,
+                'email': u.email,
+                'first_name': u.first_name,
+                'last_name': u.last_name,
+                'user_type': u.profile.user_type,
+                'role': u.profile.role,
+                'email_verified': u.profile.email_verified,
+                'date_joined': u.date_joined,
+                'properties_count': u.properties.count(),
+                'total_bookings': Booking.objects.filter(
+                    property__owner=u
+                ).count(),
+            })
+        
+        return Response({
+            'count': len(landlords_data),
+            'results': landlords_data
+        })
+
+
+# ----------------------
+# FAVORITE - USER LIST
+# ----------------------
+class UserFavoriteListView(generics.ListAPIView):
+    """User: Get their favorite properties"""
+    serializer_class = FavoriteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """Get only favorites for the current user"""
+        return Favorite.objects.filter(user=self.request.user).order_by('-created_at')
+
+
+# ----------------------
+# FAVORITE - CREATE/DELETE
+# ----------------------
+class FavoriteToggleView(APIView):
+    """User: Add or remove a property from favorites"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """Add to favorites"""
+        serializer = FavoriteCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        property_id = serializer.validated_data['property'].id
+        user = request.user
+        
+        # Check if already favorited
+        favorite = Favorite.objects.filter(user=user, property_id=property_id).first()
+        if favorite:
+            return Response(
+                {"message": "Already in favorites"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        Favorite.objects.create(user=user, property_id=property_id)
+        return Response(
+            {"message": "Added to favorites"},
+            status=status.HTTP_201_CREATED
+        )
+
+    def delete(self, request):
+        """Remove from favorites"""
+        property_id = request.data.get('property_id')
+        if not property_id:
+            return Response(
+                {"error": "property_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        favorite = Favorite.objects.filter(
+            user=request.user,
+            property_id=property_id
+        ).first()
+        
+        if not favorite:
+            return Response(
+                {"error": "Not in favorites"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        favorite.delete()
+        return Response(
+            {"message": "Removed from favorites"},
+            status=status.HTTP_200_OK
+        )
+
+
+# ----------------------
+# VIEWED PROPERTY - USER LIST
+# ----------------------
+class ViewedPropertyListView(generics.ListAPIView):
+    """User: Get their viewed properties"""
+    serializer_class = ViewedPropertySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """Get only viewed properties for the current user"""
+        return ViewedProperty.objects.filter(user=self.request.user).order_by('-last_viewed')
+
+
+# ----------------------
+# VIEWED PROPERTY - TRACK VIEW
+# ----------------------
+class ViewPropertyView(APIView):
+    """User: Record that they viewed a property"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        """Track property view"""
+        property_id = request.data.get('property_id')
+        if not property_id:
+            return Response(
+                {"error": "property_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            property_obj = Property.objects.get(id=property_id)
+        except Property.DoesNotExist:
+            return Response(
+                {"error": "Property not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        user = request.user
+        viewed, created = ViewedProperty.objects.get_or_create(
+            user=user,
+            property=property_obj
+        )
+        
+        if not created:
+            # Increment view count
+            viewed.view_count += 1
+            viewed.save()
+        
+        serializer = ViewedPropertySerializer(viewed)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
