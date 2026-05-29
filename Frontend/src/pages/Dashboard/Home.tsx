@@ -14,6 +14,9 @@ export default function Home() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedType, setSelectedType] = useState("All");
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
 
   // **Fetch favorites and properties on component mount**
   useEffect(() => {
@@ -73,9 +76,23 @@ export default function Home() {
     navigate(`/property/${propertyId}`);
   };
 
-  const filteredProperties = properties.filter((p) => 
-    selectedType === "All" || p.property_type.toLowerCase() === selectedType.toLowerCase()
-  );
+  const filteredProperties = properties.filter((p) => {
+    // Filter by type
+    const matchesType = selectedType === "All" || p.property_type.toLowerCase() === selectedType.toLowerCase();
+    
+    // Filter by search query (title or city)
+    const matchesSearch = searchQuery === "" || 
+      p.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      p.city.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Filter by price range
+    const price = parseFloat(p.price);
+    const minPriceNum = minPrice === "" ? 0 : parseFloat(minPrice);
+    const maxPriceNum = maxPrice === "" ? Infinity : parseFloat(maxPrice);
+    const matchesPrice = price >= minPriceNum && price <= maxPriceNum;
+    
+    return matchesType && matchesSearch && matchesPrice;
+  });
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] font-sans text-[#2D3748]">
@@ -98,11 +115,21 @@ export default function Home() {
                 Filters
               </div>
 
-              {/* **Property Type with the Circle Indicators** */}
+              {/* **Search by Location** */}
+              <div className="mb-10">
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-3">Search Location</label>
+                <input 
+                  type="text" 
+                  placeholder="Enter location or title..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-4 py-3 bg-[#F8F9FB] rounded-xl text-xs border-none outline-none focus:ring-2 focus:ring-[#A989C8]/30 transition"
+                />
+              </div>              {/* **Property Type with the Circle Indicators** */}
               <div className="mb-10">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-6">Property Type</label>
                 <div className="space-y-5">
-                  {["All", "Room", "Flat", "Land", "House"].map((type) => (
+                  {["All", "Room", "Apartment", "Land", "House"].map((type) => (
                     <button
                       key={type}
                       onClick={() => setSelectedType(type)}
@@ -126,13 +153,30 @@ export default function Home() {
               <div className="mb-10">
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-5">Price Range (NPR/Month)</label>
                 <div className="flex gap-2">
-                  <input placeholder="Min price" className="w-full px-4 py-3 bg-[#F8F9FB] rounded-xl text-xs border-none outline-none" />
-                  <input placeholder="Max price" className="w-full px-4 py-3 bg-[#F8F9FB] rounded-xl text-xs border-none outline-none" />
+                  <input 
+                    type="number"
+                    placeholder="Min price" 
+                    value={minPrice}
+                    onChange={(e) => setMinPrice(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#F8F9FB] rounded-xl text-xs border-none outline-none focus:ring-2 focus:ring-[#A989C8]/30 transition" 
+                  />
+                  <input 
+                    type="number"
+                    placeholder="Max price" 
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(e.target.value)}
+                    className="w-full px-4 py-3 bg-[#F8F9FB] rounded-xl text-xs border-none outline-none focus:ring-2 focus:ring-[#A989C8]/30 transition" 
+                  />
                 </div>
               </div>
 
               <button 
-                onClick={() => setSelectedType("All")}
+                onClick={() => {
+                  setSelectedType("All");
+                  setSearchQuery("");
+                  setMinPrice("");
+                  setMaxPrice("");
+                }}
                 className="w-full py-4 text-[10px] font-bold text-gray-400 border border-gray-100 rounded-2xl hover:bg-gray-50 transition uppercase tracking-widest"
               >
                 Reset Filters

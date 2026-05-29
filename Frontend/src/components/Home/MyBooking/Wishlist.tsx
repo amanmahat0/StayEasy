@@ -3,9 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { 
   Heart, 
   MapPin, 
-  Bed, 
-  Bath, 
-  Maximize, 
   Trash2, 
   Star 
 } from "lucide-react";
@@ -79,90 +76,87 @@ export default function Wishlist() {
           </div>
         ) : (
           <>
-            {/* --- WISHLIST GRID --- */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-16">
-              
+            {/* --- FAVORITES LIST (Horizontal Layout) --- */}
+            <div className="flex flex-col gap-6 mb-16">
               {favorites.map((favorite) => {
                 const prop = favorite.property_info;
-                const imageUrl = prop.images?.[0]?.image ? `http://127.0.0.1:8000${prop.images[0].image}` : "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800";
+                const imageUrl = prop.images?.[0]?.image ? `http://127.0.0.1:8000${prop.images[0].image}` : "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267";
                 
                 return (
-                  <div key={prop.id} className="group bg-white rounded-[24px] overflow-hidden border border-slate-100 shadow-sm transition-all hover:shadow-md">
-                    
-                    {/* IMAGE SECTION */}
-                    <div className="relative h-48 overflow-hidden">
+                  <div 
+                    key={prop.id}
+                    className="bg-white rounded-[24px] p-6 border border-slate-100 shadow-sm flex flex-col md:flex-row items-center gap-8 transition-all hover:shadow-md"
+                  >
+                    {/* Image Thumbnail */}
+                    <div className="w-full md:w-56 h-36 rounded-[18px] overflow-hidden shrink-0 border border-slate-50">
                       <img 
-                        src={imageUrl} 
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" 
-                        alt={prop.title} 
+                        src={imageUrl}
+                        alt={prop.title}
+                        className="w-full h-full object-cover"
                       />
-                      
-                      <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-                        <span className="bg-white/90 backdrop-blur-md px-2 py-0.5 rounded-md text-[8px] font-bold text-slate-700 uppercase shadow-sm">
-                          {prop.property_type}
-                        </span>
-                        {prop.available && (
-                          <span className="bg-[#10B981] px-2 py-0.5 rounded-md text-[8px] font-bold text-white flex items-center gap-1">
-                            <Star size={8} fill="currentColor" /> Available
-                          </span>
-                        )}
-                      </div>
-
-                      <button 
-                        onClick={() => handleRemoveFavorite(prop.id)}
-                        className="absolute top-3 right-3 p-1.5 bg-white rounded-full text-red-500 shadow-sm hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-
-                      <div className="absolute bottom-3 right-3">
-                        <span className={`px-3 py-1 rounded-full text-[8px] font-bold uppercase text-white shadow-lg ${
-                          prop.has_confirmed_booking ? 'bg-[#FF9900]' : 'bg-[#4F46E5]'
-                        }`}>
-                          {prop.has_confirmed_booking ? 'Booked' : 'Available'}
-                        </span>
-                      </div>
                     </div>
 
-                    {/* CONTENT SECTION */}
-                    <div className="p-5 text-left">
-                      <h3 className="font-bold text-base text-slate-900 mb-0.5 leading-tight line-clamp-1">
-                        {prop.title}
-                      </h3>
-                      
-                      <div className="flex items-center gap-1 text-slate-400 text-[10px] mb-4 font-medium">
-                        <MapPin size={10} className="text-[#A989C8]" /> {prop.city}
-                      </div>
-
-                      {/* SPECS */}
-                      <div className="flex items-center gap-3 text-slate-500 text-[10px] font-bold mb-5">
-                        <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg">
-                          <Bed size={12} className="text-slate-400" /> 2
-                        </div>
-                        <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg">
-                          <Bath size={12} className="text-slate-400" /> 2
-                        </div>
-                        <div className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-lg">
-                          <Maximize size={12} className="text-slate-400" /> 200
-                        </div>
-                      </div>
-
-                      {/* PRICE ROW */}
-                      <div className="flex items-center justify-between pt-4 border-t border-slate-50">
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[#A989C8] font-bold text-lg tracking-tight">
-                              NPR {parseFloat(prop.price).toLocaleString()}
-                            </span>
+                    {/* Favorite Info */}
+                    <div className="flex-1 w-full">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="text-left">
+                          <h3 className="text-lg font-bold text-slate-900 mb-0.5 leading-tight">
+                            {prop.title}
+                          </h3>
+                          <div className="flex items-center gap-1 text-slate-400 text-[10px] font-medium">
+                            <MapPin size={10} className="text-[#A989C8]" /> {prop.city}
                           </div>
                         </div>
+                        
+                        {/* Status Tag */}
+                        <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full border ${
+                          prop.has_confirmed_booking 
+                            ? 'bg-[#FEF3C7] text-[#D97706] border-[#FCD34D]'
+                            : 'bg-[#F0FDF4] text-[#10B981] border-[#DCFCE7]'
+                        }`}>
+                          <Star size={12} />
+                          <span className="text-[9px] font-bold uppercase tracking-widest">
+                            {prop.has_confirmed_booking ? 'Booked' : 'Available'}
+                          </span>
+                        </div>
                       </div>
-                      
-                      <button 
-                        onClick={() => navigate(`/property/${prop.id}`)}
-                        className="w-full mt-4 py-3 bg-[#F5F3FF] text-[#A989C8] font-bold text-[10px] uppercase tracking-widest rounded-xl hover:bg-[#A989C8] hover:text-white transition-all">
-                        View Details
-                      </button>
+
+                      {/* Details Grid */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5 text-left">
+                        <div>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Property Type</p>
+                          <p className="text-xs font-bold text-slate-700">{prop.property_type}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Monthly Rent</p>
+                          <p className="text-sm font-bold text-[#A989C8] tracking-tight">
+                            NPR {parseFloat(prop.price).toLocaleString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[9xs] font-bold text-slate-400 uppercase tracking-widest mb-1">Location</p>
+                          <p className="text-xs font-bold text-slate-700">{prop.city}</p>
+                        </div>
+                      </div>
+
+                      {/* Footer of the favorite card */}
+                      <div className="flex justify-between items-center pt-4 border-t border-slate-50">
+                        <button 
+                          onClick={() => handleRemoveFavorite(prop.id)}
+                          className="flex items-center gap-1.5 text-red-600 font-bold text-[10px] uppercase tracking-widest hover:opacity-70 transition-all"
+                        >
+                          <Trash2 size={14} />
+                          Remove
+                        </button>
+                        
+                        <button 
+                          onClick={() => navigate(`/property/${prop.id}`)}
+                          className="flex items-center gap-1.5 text-[#A989C8] font-bold text-[10px] uppercase tracking-widest hover:opacity-70 transition-all"
+                        >
+                          <Heart size={14} fill="currentColor" />
+                          View Details
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

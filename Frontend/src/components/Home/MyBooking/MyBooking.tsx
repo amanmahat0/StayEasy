@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Eye, CheckCircle2, MapPin } from "lucide-react";
 import PublicNavbar from "../../Navbar/PublicNavbar"; 
 import Footer from "../../Footer";
 import { getUserBookings } from "../../../services/api";
 
 export default function MyBooking() {
+  const navigate = useNavigate();
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -142,7 +144,10 @@ export default function MyBooking() {
                       <p className="text-slate-400">Status: <span className={getStatusColor(booking.status).split(' ')[1]}>{getStatusLabel(booking.status).toUpperCase()}</span></p>
                     </div>
                     
-                    <button className="flex items-center gap-1.5 text-[#A989C8] font-bold text-[10px] uppercase tracking-widest hover:opacity-70 transition-all">
+                    <button 
+                      onClick={() => navigate(`/property/${booking.property_info.id}`)}
+                      className="flex items-center gap-1.5 text-[#A989C8] font-bold text-[10px] uppercase tracking-widest hover:opacity-70 transition-all"
+                    >
                       <Eye size={14} />
                       View Details
                     </button>
