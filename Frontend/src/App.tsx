@@ -24,6 +24,8 @@ import Properties from "./pages/Properties/Properties";
 import PropertyDetails from "./components/Home/Property/PropertyDetail";
 import Tenant from "./pages/Properties/Tenant";
 import Payment from "./pages/Properties/Payment";
+import PaymentHistory from "./pages/Properties/PaymentHistory";
+import RefundHistory from "./pages/Properties/RefundHistory";
 import EsewaPayment from "./pages/Properties/EsewaPayment";
 import PaymentSuccess from "./pages/Properties/PaymentSuccess";
 import PaymentFailed from "./pages/Properties/PaymentFailed";
@@ -81,7 +83,9 @@ export default function App() {
       <Route path="/properties" element={<ProtectedRoute><Properties /></ProtectedRoute>} />
       <Route path="/property/:id" element={<ProtectedRoute><PropertyDetails /></ProtectedRoute>} />
       <Route path="/tenant" element={<ProtectedRoute><Tenant /></ProtectedRoute>} />
+      <Route path="/payment-history" element={<ProtectedRoute><PaymentHistory /></ProtectedRoute>} />
       <Route path="/payment-history/:tenantId" element={<ProtectedRoute><Payment /></ProtectedRoute>} />
+      <Route path="/refunds" element={<ProtectedRoute><RefundHistory /></ProtectedRoute>} />
       <Route path="/payment/:bookingId" element={<ProtectedRoute><EsewaPayment /></ProtectedRoute>} />
       <Route path="/payment-success/:bookingId" element={<ProtectedRoute><PaymentSuccess /></ProtectedRoute>} />
       <Route path="/payment-failed/:bookingId" element={<ProtectedRoute><PaymentFailed /></ProtectedRoute>} />

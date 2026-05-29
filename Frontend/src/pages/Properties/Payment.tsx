@@ -91,13 +91,11 @@ const Payment: React.FC = () => {
   // Calculate stats
   const totalRevenue = payments.reduce((sum, p) => sum + parseFloat(p.total_price?.toString() || '0'), 0);
   const completedPayments = payments.filter(p => p.payment_status === 'completed').length;
-  const pendingPayments = payments.filter(p => p.payment_status === 'pending').length;
   const failedPayments = payments.filter(p => p.payment_status === 'failed').length;
 
   const stats = [
     { label: 'Total Revenue', value: `NPR ${totalRevenue.toLocaleString()}`, icon: <DollarSign className="text-green-500" />, bg: 'bg-green-50' },
     { label: 'Completed', value: completedPayments.toString(), icon: <CheckCircle2 className="text-green-500" />, bg: 'bg-green-50' },
-    { label: 'Pending', value: pendingPayments.toString(), icon: <Clock className="text-orange-500" />, bg: 'bg-orange-50' },
     { label: 'Failed', value: failedPayments.toString(), icon: <AlertCircle className="text-red-500" />, bg: 'bg-red-50' },
   ];
 
@@ -150,7 +148,7 @@ const Payment: React.FC = () => {
         ) : (
           <>
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
               {stats.map((stat, i) => (
                 <div key={i} className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-start">
                   <div className={`w-12 h-12 ${stat.bg} rounded-2xl flex items-center justify-center mb-4`}>
@@ -240,13 +238,13 @@ const Payment: React.FC = () => {
                           <td className="px-6 py-6">
                             <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest w-fit ${
                               payment.payment_status === 'completed' ? 'bg-green-50 text-green-500 border border-green-100' : 
-                              payment.payment_status === 'pending' ? 'bg-orange-50 text-orange-500 border border-orange-100' : 
+                              payment.payment_status === 'pending' ? 'bg-yellow-50 text-yellow-500 border border-yellow-100' : 
                               'bg-red-50 text-red-500 border border-red-100'
                             }`}>
                               {payment.payment_status === 'completed' ? <CheckCircle2 size={12} /> : 
-                               payment.payment_status === 'pending' ? <Clock size={12} /> : 
+                               payment.payment_status === 'pending' ? <Loader2 size={12} className="animate-spin" /> : 
                                <AlertCircle size={12} />}
-                              {payment.payment_status.charAt(0).toUpperCase() + payment.payment_status.slice(1)}
+                              {payment.payment_status === 'pending' ? 'Processing' : payment.payment_status.charAt(0).toUpperCase() + payment.payment_status.slice(1)}
                             </span>
                           </td>
                           <td className="px-6 py-6 text-[10px] font-bold text-gray-400 tracking-wider font-mono">{payment.id}</td>

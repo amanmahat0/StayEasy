@@ -23,6 +23,20 @@ const QuickActions = () => {
           View Tenants
         </button>
 
+        <button 
+          onClick={() => navigate("/payment-history")}
+          className="w-full border py-2 rounded-lg text-sm"
+        >
+          Payment History
+        </button>
+
+        <button 
+          onClick={() => navigate("/refunds")}
+          className="w-full border py-2 rounded-lg text-sm text-red-600 border-red-200 hover:bg-red-50"
+        >
+          Refunds
+        </button>
+
         {/* ✅ Navigate to KYC page */}
         <button
           onClick={() => navigate("/kyc")}

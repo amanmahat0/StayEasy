@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Home, Users, TrendingUp, ShieldCheck, Eye, Edit, Trash2, MessageCircle } from "lucide-react";
+import { Plus, Home, Users, TrendingUp, ShieldCheck, Eye, Edit, Trash2, MessageCircle, Calendar, Mail, Phone } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import PublicNavbar from "../../components/Navbar/PublicNavbar";
@@ -15,6 +15,7 @@ import ProfileCard from "../../components/Profile/ProfileCard";
 import chatService from "../../services/chatService";
 import { toConversationView } from "../../utils/chatUtils";
 import { getKYCStatus, getLandlordDashboard, deleteProperty } from "../../services/api";
+import API from "../../services/api";
 import type { ConversationView } from "../../type";
 
 interface DashboardData {
@@ -79,6 +80,7 @@ const Dashboard = () => {
   const { properties, fetchProperties } = useProperties();
   const [kyc, setKyc] = useState<any>(null);
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [recentTenants, setRecentTenants] = useState<any[]>([]);
 
   const fullName = user ? `${user.first_name}` : "User";
 
@@ -113,6 +115,15 @@ const Dashboard = () => {
 
         // Fetch landlord properties
         await fetchProperties();
+
+        // Fetch tenant bookings for dashboard
+        try {
+          const bookingsRes = await API.get('landlord/bookings/');
+          const bookings = Array.isArray(bookingsRes.data) ? bookingsRes.data : (bookingsRes.data.results || []);
+          setRecentTenants(bookings);
+        } catch (e) {
+          // non-critical
+        }
       } catch (error) {
         console.error("Failed to fetch dashboard data:", error);
       }
@@ -147,8 +158,8 @@ const Dashboard = () => {
           {/* Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard icon={Home} label="Total Properties" value={dashboard?.total_properties.toString() || "0"} />
-            <StatCard icon={Users} label="Available Properties" value={dashboard?.available_properties.toString() || "0"} />
-            <StatCard icon={TrendingUp} label="Your Properties" value={properties.length.toString()} />
+            <StatCard icon={Users} label="Available" value={dashboard?.available_properties.toString() || "0"} />
+            <StatCard icon={TrendingUp} label="Total Tenants" value={recentTenants.length > 0 ? new Map(recentTenants.map((b: any) => [b.user_info?.id, true])).size.toString() : "0"} />
             <StatCard icon={ShieldCheck} label="KYC Status" value={kycLabel} />
           </div>
 
@@ -266,6 +277,55 @@ const Dashboard = () => {
             {/* RIGHT: Quick Actions + Recent Activity */}
             <div className="space-y-6">
               <QuickActions />
+              
+              {/* Recent Tenants */}
+              {recentTenants.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                      <Users size={18} className="text-[#A989C8]" />
+                      Recent Tenants
+                    </h3>
+                    <button
+                      onClick={() => navigate('/tenant')}
+                      className="text-xs text-[#A989C8] font-medium hover:underline"
+                    >
+                      View All ({recentTenants.length})
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {recentTenants.slice(0, 5).map((booking: any) => {
+                      const first = booking.user_info?.first_name || '';
+                      const last = booking.user_info?.last_name || '';
+                      const name = `${first} ${last}`.trim() || booking.user_info?.email || 'Unknown';
+                      const initial = (first[0] || last[0] || '?').toUpperCase();
+                      const kycOk = booking.user_info?.kyc_status === 'approved';
+                      return (
+                        <div key={booking.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors">
+                          <div className={`w-10 h-10 rounded-full ${kycOk ? 'bg-green-500' : 'bg-gray-400'} flex items-center justify-center text-white font-bold text-sm shrink-0`}>
+                            {initial}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
+                            <p className="text-xs text-gray-500 truncate flex items-center gap-1">
+                              <Home size={11} />
+                              {booking.property_info?.title || 'Property'}
+                            </p>
+                          </div>
+                          <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+                            booking.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                            booking.status === 'pending' || booking.status === 'processing' ? 'bg-purple-100 text-purple-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {booking.status === 'confirmed' ? 'Booked' : booking.status === 'pending' ? 'Processing' : booking.status}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <RecentActivity />
               {user && <RecentMessages userId={user.id} userType={user.user_type} />}
             </div>

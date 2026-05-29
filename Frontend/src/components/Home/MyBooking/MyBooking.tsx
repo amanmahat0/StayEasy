@@ -30,7 +30,7 @@ export default function MyBooking() {
       case 'confirmed':
         return 'Booked';
       case 'pending':
-        return 'Pending';
+        return 'Processing';
       case 'processing':
         return 'Processing';
       default:

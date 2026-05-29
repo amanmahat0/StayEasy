@@ -32,6 +32,8 @@ from .views import (
     UserBookingListView,
     LandlordBookingListView,
     LandlordTenantPaymentHistoryView,
+    LandlordPaymentHistoryView,
+    LandlordRefundListView,
     BookingDetailView,
     BookingCancelView,
     InitiateEsewaPaymentView,
@@ -92,6 +94,10 @@ urlpatterns = [
     path('landlord/properties/<int:id>/update/', LandlordPropertyUpdateView.as_view(), name='landlord-property-update'),
     path('landlord/properties/<int:id>/delete/', LandlordPropertyDeleteView.as_view(), name='landlord-property-delete'),
     path('landlord/properties/<int:property_id>/bookings/', LandlordPropertyBookingsView.as_view(), name='landlord-property-bookings'),
+    path('landlord/bookings/', LandlordBookingListView.as_view(), name='landlord-booking-list'),
+    path('landlord/payments/', LandlordPaymentHistoryView.as_view(), name='landlord-payment-history'),
+    path('landlord/payments/<int:tenant_id>/', LandlordTenantPaymentHistoryView.as_view(), name='landlord-tenant-payments'),
+    path('landlord/refunds/', LandlordRefundListView.as_view(), name='landlord-refund-list'),
     
     # =====================================================
     # USER PROPERTY & BOOKING ENDPOINTS

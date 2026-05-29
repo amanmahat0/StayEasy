@@ -27,6 +27,7 @@ from .serializers import (
     BookingSerializer,
     BookingDetailSerializer,
     BookingCreateSerializer,
+    RefundDetailSerializer,
     FavoriteSerializer,
     FavoriteCreateSerializer,
     ViewedPropertySerializer,
@@ -757,6 +758,17 @@ class LandlordDashboardView(APIView):
     def get(self, request):
         user = request.user
         
+        # Try landlord_id from JWT first (for LandlordUser accounts)
+        try:
+            landlord_id = request.auth.payload.get('landlord_id')
+        except AttributeError:
+            landlord_id = None
+        
+        if landlord_id:
+            properties = Property.objects.filter(landlord_id=landlord_id)
+        else:
+            properties = Property.objects.filter(owner=user)
+        
         # Get KYC status
         kyc_status = "not_submitted"
         try:
@@ -765,8 +777,6 @@ class LandlordDashboardView(APIView):
         except KYC.DoesNotExist:
             pass
 
-        # Get property stats
-        properties = Property.objects.filter(owner=user)
         total_properties = properties.count()
         available_properties = properties.filter(available=True).count()
 
@@ -863,9 +873,20 @@ class LandlordBookingListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        """Get bookings for all properties owned by the current user"""
+        """Get bookings for all properties owned by the current landlord (owner OR landlord FK)"""
         user = self.request.user
-        properties = Property.objects.filter(owner=user)
+        
+        # Try landlord_id from JWT first (for LandlordUser accounts)
+        try:
+            landlord_id = self.request.auth.payload.get('landlord_id')
+        except AttributeError:
+            landlord_id = None
+        
+        if landlord_id:
+            properties = Property.objects.filter(landlord_id=landlord_id)
+        else:
+            properties = Property.objects.filter(owner=user)
+        
         return Booking.objects.filter(property__in=properties).order_by('-created_at')
 
 
@@ -882,17 +903,67 @@ class LandlordTenantPaymentHistoryView(generics.ListAPIView):
         user = self.request.user
         tenant_id = self.kwargs.get('tenant_id')
         
-        # Get all properties owned by the current user
-        properties = Property.objects.filter(owner=user)
+        # Try landlord_id from JWT first (for LandlordUser accounts)
+        try:
+            landlord_id = self.request.auth.payload.get('landlord_id')
+        except AttributeError:
+            landlord_id = None
         
-        # Filter bookings by:
-        # 1. Tenant ID (user_id)
-        # 2. Landlord's properties
-        # Order by newest first
+        if landlord_id:
+            properties = Property.objects.filter(landlord_id=landlord_id)
+        else:
+            properties = Property.objects.filter(owner=user)
+        
         return Booking.objects.filter(
             user_id=tenant_id,
             property__in=properties
         ).order_by('-created_at')
+
+
+class LandlordPaymentHistoryView(generics.ListAPIView):
+    """Landlord: Get all payment records across all tenants"""
+    serializer_class = BookingDetailSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        """Return completed/payment bookings for all the landlord's properties"""
+        user = self.request.user
+        try:
+            landlord_id = self.request.auth.payload.get('landlord_id')
+        except AttributeError:
+            landlord_id = None
+
+        if landlord_id:
+            properties = Property.objects.filter(landlord_id=landlord_id)
+        else:
+            properties = Property.objects.filter(owner=user)
+
+        return Booking.objects.filter(
+            property__in=properties,
+            payment_status='completed'
+        ).order_by('-created_at')
+
+
+class LandlordRefundListView(generics.ListAPIView):
+    """Landlord: Get all refunds across all tenants and properties"""
+    serializer_class = RefundDetailSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        try:
+            landlord_id = self.request.auth.payload.get('landlord_id')
+        except AttributeError:
+            landlord_id = None
+
+        if landlord_id:
+            properties = Property.objects.filter(landlord_id=landlord_id)
+        else:
+            properties = Property.objects.filter(owner=user)
+
+        return Refund.objects.filter(
+            booking__property__in=properties
+        ).order_by('-requested_at')
 
 
 # ----------------------

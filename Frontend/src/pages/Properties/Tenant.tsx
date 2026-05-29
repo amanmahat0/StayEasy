@@ -13,6 +13,8 @@ interface BookingData {
     last_name: string;
     email: string;
     username?: string;
+    phone?: string;
+    kyc_status?: string;
   };
   property_info: {
     id: number;
@@ -23,7 +25,7 @@ interface BookingData {
   };
   check_in: string;
   check_out: string;
-  status: 'confirmed' | 'completed' | 'cancelled' | 'pending';
+  status: 'confirmed' | 'completed' | 'cancelled' | 'pending' | 'processing';
   created_at: string;
 }
 
@@ -73,20 +75,20 @@ const Tenant: React.FC = () => {
       }
       
       const tenantsInfo = bookings.map((booking) => {
-        console.log('Processing booking:', booking);
         const firstName = booking.user_info?.first_name || '';
         const lastName = booking.user_info?.last_name || '';
+        const kycStatus = booking.user_info?.kyc_status || 'not_submitted';
         
         return {
-          id: booking.id.toString(),
+          id: (booking.user_info?.id || booking.id).toString(),
           name: `${firstName} ${lastName}`.trim() || booking.user_info?.email || 'Unknown',
           email: booking.user_info?.email || '',
-          phone: booking.user_info?.username || '+977-9800000000',
+          phone: booking.user_info?.phone || 'Not provided',
           property: booking.property_info?.title || 'Unknown Property',
-          status: booking.status === 'confirmed' ? 'Booked' : booking.status === 'pending' ? 'Pending' : booking.status === 'processing' ? 'Processing' : 'Cancelled',
-          kycVerified: true, 
+          status: booking.status === 'confirmed' ? 'Booked' : booking.status === 'processing' ? 'Processing' : 'Cancelled',
+          kycVerified: kycStatus === 'approved',
           monthlyRent: `NPR ${booking.property_info?.price?.toLocaleString() || '0'}`,
-          depositPaid: `NPR ${((booking.property_info?.price || 0) * 2).toLocaleString()}`,
+          depositPaid: `NPR ${((booking.property_info?.price || 0)).toLocaleString()}`,
           moveInDate: new Date(booking.check_in).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           leaseEndDate: new Date(booking.check_out).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           initials: (firstName.charAt(0) + lastName.charAt(0)).toUpperCase() || 'TN',
@@ -118,8 +120,7 @@ const Tenant: React.FC = () => {
 
   const tabs = [
     { name: 'All Tenants', count: tenants.length },
-    { name: 'Active', count: tenants.filter(t => t.status === 'Active').length },
-    { name: 'Pending', count: tenants.filter(t => t.status === 'Pending').length },
+    { name: 'Active', count: tenants.filter(t => t.status === 'Active' || t.status === 'Booked').length },
     { name: 'Moved Out', count: 0 },
   ];
 

@@ -554,13 +554,23 @@ class BookingDetailSerializer(serializers.ModelSerializer):
         }
 
     def get_user_info(self, obj):
-        """Return user (tenant) details"""
+        """Return user (tenant) details with KYC and phone"""
+        phone = ''
+        kyc_status = 'not_submitted'
+        try:
+            kyc = obj.user.kyc
+            phone = kyc.phone_number or ''
+            kyc_status = kyc.status
+        except:
+            pass
         return {
             "id": obj.user.id,
             "username": obj.user.username,
             "email": obj.user.email,
             "first_name": obj.user.first_name,
             "last_name": obj.user.last_name,
+            "phone": phone,
+            "kyc_status": kyc_status,
         }
 
 
@@ -678,6 +688,53 @@ class RefundSerializer(serializers.ModelSerializer):
             'processed_at'
         ]
         read_only_fields = ['id', 'requested_at', 'processed_at']
+
+
+class RefundDetailSerializer(serializers.ModelSerializer):
+    """Serializer for refunds with booking, tenant, and property details"""
+    booking_id = serializers.IntegerField(source='booking.id', read_only=True)
+    tenant_name = serializers.SerializerMethodField()
+    tenant_email = serializers.SerializerMethodField()
+    property_name = serializers.SerializerMethodField()
+    property_city = serializers.SerializerMethodField()
+    paid_amount = serializers.SerializerMethodField()
+    remaining_amount = serializers.SerializerMethodField()
+    payment_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Refund
+        fields = [
+            'id', 'booking_id', 'tenant_name', 'tenant_email',
+            'property_name', 'property_city',
+            'paid_amount', 'refund_amount', 'refund_percentage',
+            'remaining_amount', 'status', 'payment_status',
+            'policy_applied', 'reason', 'requested_at', 'processed_at'
+        ]
+        read_only_fields = fields
+
+    def get_tenant_name(self, obj):
+        u = obj.booking.user
+        return f"{u.first_name} {u.last_name}".strip() or u.username
+
+    def get_tenant_email(self, obj):
+        return obj.booking.user.email
+
+    def get_property_name(self, obj):
+        return obj.booking.property.title
+
+    def get_property_city(self, obj):
+        return obj.booking.property.city
+
+    def get_paid_amount(self, obj):
+        return str(obj.payment.amount)
+
+    def get_remaining_amount(self, obj):
+        paid = float(obj.payment.amount)
+        refunded = float(obj.refund_amount)
+        return str(max(0, paid - refunded))
+
+    def get_payment_status(self, obj):
+        return obj.payment.status
 
 
 class CancellationSerializer(serializers.ModelSerializer):

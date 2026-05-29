@@ -105,7 +105,6 @@ const BookingManagement = () => {
       case "cancelled":
         return "bg-red-100 text-red-800";
       case "pending":
-        return "bg-yellow-100 text-yellow-800";
       case "processing":
         return "bg-purple-100 text-purple-800";
       default:
@@ -122,7 +121,6 @@ const BookingManagement = () => {
       case "cancelled":
         return "🔴";
       case "pending":
-        return "🟡";
       case "processing":
         return "🟣";
       default:
@@ -147,21 +145,15 @@ const BookingManagement = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-4 mb-8">
           <div className="bg-white p-4 rounded-lg border border-gray-200">
             <p className="text-gray-600 text-sm font-medium">Total</p>
             <p className="text-2xl font-bold text-gray-900">{bookings.length}</p>
           </div>
           <div className="bg-white p-4 rounded-lg border border-gray-200">
-            <p className="text-yellow-600 text-sm font-medium">🟡 Pending</p>
-            <p className="text-2xl font-bold text-yellow-600">
-              {bookings.filter((b) => b.status === "pending").length}
-            </p>
-          </div>
-          <div className="bg-white p-4 rounded-lg border border-gray-200">
             <p className="text-purple-600 text-sm font-medium">🟣 Processing</p>
             <p className="text-2xl font-bold text-purple-600">
-              {bookings.filter((b) => b.status === "processing").length}
+              {bookings.filter((b) => b.status === "pending" || b.status === "processing").length}
             </p>
           </div>
           <div className="bg-white p-4 rounded-lg border border-gray-200">
@@ -274,7 +266,7 @@ const BookingManagement = () => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                         >
                           <option value="">Select Status</option>
-                          <option value="pending">Pending</option>
+                          <option value="pending">Processing</option>
                           <option value="processing">Processing</option>
                           <option value="confirmed">Confirmed</option>
                           <option value="completed">Completed</option>
