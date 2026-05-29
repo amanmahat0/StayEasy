@@ -138,3 +138,6 @@ ESEWA_MERCHANT_CODE = config('ESEWA_MERCHANT_CODE', default='EPAYTEST')
 ESEWA_SECRET_KEY = config('ESEWA_SECRET_KEY', default='8gBm/:&EnhH.1/q')
 ESEWA_SANDBOX_URL = 'https://rc-epay.esewa.com.np/api/epay/txn/v1/verify/'
 ESEWA_FORM_URL = 'https://rc-epay.esewa.com.np/api/epay/main/v2/form'
+
+# Set to 'production' for live payments
+ESEWA_ENVIRONMENT = config('ESEWA_ENVIRONMENT', default='sandbox')

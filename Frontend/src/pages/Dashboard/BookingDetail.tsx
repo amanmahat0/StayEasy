@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, X } from "lucide-react";
+import { ArrowLeft, Loader2, X, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface BookingDetail {
   id: number;
@@ -30,6 +30,12 @@ interface BookingDetail {
   updated_at: string;
 }
 
+interface RefundInfo {
+  refund_amount: number;
+  refund_percentage: number;
+  policy_applied: string;
+}
+
 const BookingDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -37,6 +43,10 @@ const BookingDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
+  const [refundInfo, setRefundInfo] = useState<RefundInfo | null>(null);
+  const [cancellationSuccess, setCancellationSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const API_BASE = "http://localhost:8000/api/users";
 
@@ -62,26 +72,77 @@ const BookingDetail = () => {
     if (id) fetchBooking();
   }, [id]);
 
+  // Calculate refund when modal opens
+  const handleOpenCancellationModal = () => {
+    if (!booking) return;
+
+    // Calculate refund based on cancellation policy
+    const daysUntilCheckin = Math.ceil(
+      (new Date(booking.check_in).getTime() - new Date().getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+
+    let refundAmount = booking.total_price;
+    let refundPercentage = 100;
+    let policyApplied = "";
+
+    if (daysUntilCheckin >= 7) {
+      // Full refund (7+ days before check-in)
+      refundAmount = booking.total_price;
+      refundPercentage = 100;
+      policyApplied = "Full refund (7+ days before check-in)";
+    } else if (daysUntilCheckin >= 3) {
+      // 50% refund (3-6 days before check-in)
+      refundAmount = booking.total_price * 0.5;
+      refundPercentage = 50;
+      policyApplied = `50% refund (${daysUntilCheckin} days before check-in)`;
+    } else {
+      // No refund (less than 3 days before check-in)
+      refundAmount = 0;
+      refundPercentage = 0;
+      policyApplied = `No refund (${daysUntilCheckin} days before check-in)`;
+    }
+
+    setRefundInfo({
+      refund_amount: refundAmount,
+      refund_percentage: refundPercentage,
+      policy_applied: policyApplied,
+    });
+    setShowCancellationModal(true);
+  };
+
   // Cancel Booking
-  const handleCancelBooking = async () => {
-    if (!confirm("Are you sure you want to cancel this booking?")) return;
+  const handleConfirmCancellation = async () => {
+    if (!booking || !refundInfo) return;
 
     setCancelling(true);
     try {
       const token = localStorage.getItem("access");
-      await axios.patch(
+      const response = await axios.post(
         `${API_BASE}/bookings/${id}/cancel/`,
-        {},
+        { reason: "User requested cancellation" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      // Refresh booking details
-      const response = await axios.get(`${API_BASE}/bookings/${id}/`, {
-        headers: { Authorization: `Bearer ${token}` },
+
+      // Set success state
+      setSuccessMessage(response.data.message);
+      setCancellationSuccess(true);
+      setShowCancellationModal(false);
+
+      // Update booking details
+      setBooking({
+        ...booking,
+        status: "cancelled",
       });
-      setBooking(response.data);
-      alert("Booking cancelled successfully");
+
+      // Auto-hide success message after 5 seconds
+      setTimeout(() => {
+        setCancellationSuccess(false);
+      }, 5000);
     } catch (err: any) {
-      alert("Failed to cancel booking");
+      const errorMsg =
+        err.response?.data?.error || "Failed to cancel booking";
+      alert(errorMsg);
       console.error(err);
     } finally {
       setCancelling(false);
@@ -141,6 +202,11 @@ const BookingDetail = () => {
     }
   };
 
+  const daysUntilCheckin = Math.ceil(
+    (new Date(booking.check_in).getTime() - new Date().getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-4xl mx-auto px-4">
@@ -152,6 +218,19 @@ const BookingDetail = () => {
           <ArrowLeft size={20} />
           Back to My Bookings
         </button>
+
+        {/* Success Message */}
+        {cancellationSuccess && (
+          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 flex items-start gap-3">
+            <CheckCircle2 className="text-green-600 flex-shrink-0 mt-0.5" size={20} />
+            <div>
+              <p className="font-semibold text-green-900">{successMessage}</p>
+              <p className="text-sm text-green-700 mt-1">
+                Your refund will be processed within 5-7 business days.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Header */}
         <div className="flex justify-between items-start mb-8">
@@ -277,7 +356,9 @@ const BookingDetail = () => {
           <div className="space-y-6">
             {/* Tenant Info */}
             <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Tenant Information</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-4">
+                Tenant Information
+              </h3>
               <div className="space-y-3">
                 <div>
                   <p className="text-gray-500 text-sm font-medium">Name</p>
@@ -302,7 +383,9 @@ const BookingDetail = () => {
 
             {/* Price Breakdown */}
             <div className="bg-white rounded-lg border border-gray-200 p-6">
-              <h3 className="text-lg font-bold text-gray-900 mb-4">Price Summary</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-4">
+                Price Summary
+              </h3>
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">
@@ -329,17 +412,26 @@ const BookingDetail = () => {
             {/* Booking Info */}
             <div className="bg-gray-50 rounded-lg border border-gray-200 p-6 text-sm">
               <p className="text-gray-600 mb-2">
-                <span className="font-medium">Booked on:</span> {new Date(booking.created_at).toLocaleDateString()}
+                <span className="font-medium">Booked on:</span>{" "}
+                {new Date(booking.created_at).toLocaleDateString()}
               </p>
               <p className="text-gray-600">
-                <span className="font-medium">Last updated:</span> {new Date(booking.updated_at).toLocaleDateString()}
+                <span className="font-medium">Last updated:</span>{" "}
+                {new Date(booking.updated_at).toLocaleDateString()}
               </p>
+              {booking.status === "confirmed" && (
+                <p className="text-blue-600 mt-3 font-medium">
+                  {daysUntilCheckin > 0
+                    ? `${daysUntilCheckin} days until check-in`
+                    : "Check-in is today!"}
+                </p>
+              )}
             </div>
 
             {/* Cancel Button */}
-            {booking.status !== "completed" && booking.status !== "cancelled" && (
+            {booking.status === "confirmed" && (
               <button
-                onClick={handleCancelBooking}
+                onClick={handleOpenCancellationModal}
                 disabled={cancelling}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium disabled:opacity-50"
               >
@@ -350,18 +442,145 @@ const BookingDetail = () => {
 
             {booking.status === "cancelled" && (
               <div className="bg-red-50 rounded-lg border border-red-200 p-4 text-center">
-                <p className="text-red-700 font-medium">This booking has been cancelled</p>
+                <p className="text-red-700 font-medium">
+                  This booking has been cancelled
+                </p>
               </div>
             )}
 
             {booking.status === "completed" && (
               <div className="bg-blue-50 rounded-lg border border-blue-200 p-4 text-center">
-                <p className="text-blue-700 font-medium">This booking is completed</p>
+                <p className="text-blue-700 font-medium">
+                  This booking is completed
+                </p>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Cancellation Modal */}
+      {showCancellationModal && refundInfo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden">
+            {/* Header */}
+            <div className="bg-red-50 border-b border-red-200 p-6">
+              <h2 className="text-xl font-bold text-red-900">Cancel Booking?</h2>
+              <p className="text-red-700 text-sm mt-2">
+                Please review the cancellation details below
+              </p>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Booking Details */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-900 mb-3">
+                  {booking.property_info.title}
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Check-in:</span>
+                    <span className="font-medium text-gray-900">
+                      {new Date(booking.check_in).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Check-out:</span>
+                    <span className="font-medium text-gray-900">
+                      {new Date(booking.check_out).toLocaleDateString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-gray-200">
+                    <span className="text-gray-600">Total Amount Paid:</span>
+                    <span className="font-semibold text-gray-900">
+                      Rs {booking.total_price.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Refund Information */}
+              <div className="border-2 border-yellow-200 bg-yellow-50 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
+                  <div>
+                    <h4 className="font-semibold text-yellow-900 mb-2">
+                      Refund Amount
+                    </h4>
+                    <p className="text-2xl font-bold text-yellow-900 mb-2">
+                      Rs {refundInfo.refund_amount.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-yellow-800">
+                      {refundInfo.refund_percentage}% of total amount
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Policy Details */}
+              <div className="bg-blue-50 rounded-lg p-4 text-sm">
+                <h4 className="font-semibold text-blue-900 mb-2">
+                  Cancellation Policy Applied
+                </h4>
+                <p className="text-blue-800">{refundInfo.policy_applied}</p>
+                <p className="text-blue-700 text-xs mt-2">
+                  Refunds are processed within 5-7 business days
+                </p>
+              </div>
+
+              {/* Cancellation Policy Terms */}
+              <div className="bg-gray-50 rounded-lg p-4 text-xs text-gray-600 space-y-2">
+                <h4 className="font-semibold text-gray-900 mb-2">
+                  Platform Cancellation Terms
+                </h4>
+                <ul className="space-y-1">
+                  <li className="flex items-start gap-2">
+                    <span className="text-green-600 font-bold">✓</span>
+                    <span>7+ days before check-in: 100% refund</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-orange-600 font-bold">⊘</span>
+                    <span>3-6 days before check-in: 50% refund</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-red-600 font-bold">✗</span>
+                    <span>Less than 3 days: No refund</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="border-t border-gray-200 p-6 flex gap-3">
+              <button
+                onClick={() => setShowCancellationModal(false)}
+                disabled={cancelling}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition font-medium disabled:opacity-50"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleConfirmCancellation}
+                disabled={cancelling}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium disabled:opacity-50"
+              >
+                {cancelling ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    Cancelling...
+                  </>
+                ) : (
+                  <>
+                    <X size={18} />
+                    Confirm Cancellation
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

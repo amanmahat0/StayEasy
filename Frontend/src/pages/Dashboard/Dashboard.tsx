@@ -1,17 +1,21 @@
-import { useEffect, useState } from "react";
-import { Plus, Home, Users, TrendingUp, ShieldCheck, Eye, Edit, Trash2 } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Plus, Home, Users, TrendingUp, ShieldCheck, Eye, Edit, Trash2, MessageCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import PublicNavbar from "../../components/Navbar/PublicNavbar";
 import Footer from "../../components/Footer";
 import { useAuth } from "../../context/AuthContext";
 import { useProperties } from "../../context/PropertyContext";
+import socketService from "../../services/socketService";
 
 import StatCard from "../../components/Dashboard/StatCard";
 import QuickActions from "../../components/Dashboard/QuickActions";
 import RecentActivity from "../../components/Dashboard/RecentActivity";
 import ProfileCard from "../../components/Profile/ProfileCard";
+import chatService from "../../services/chatService";
+import { toConversationView } from "../../utils/chatUtils";
 import { getKYCStatus, getLandlordDashboard, deleteProperty } from "../../services/api";
+import type { ConversationView } from "../../type";
 
 interface DashboardData {
   kyc_status?: string;
@@ -20,33 +24,46 @@ interface DashboardData {
   can_add_property: boolean;
 }
 
-function RecentMessages({ userId }: { userId: number }) {
-  const [messages, setMessages] = useState<any[]>([]);
+function RecentMessages({ userId, userType }: { userId: number; userType?: string }) {
+  const [conversations, setConversations] = useState<ConversationView[]>([]);
+
+  const loadRecent = useCallback(() => {
+    if (!userId) return;
+    chatService.getConversations().then((data) => {
+      const views = data.map((c) => toConversationView(c, userId, userType));
+      setConversations(views.slice(0, 5));
+    });
+  }, [userId, userType]);
+
   useEffect(() => {
     if (!userId) return;
-    fetch(`/api/conversations/${userId}`)
-      .then((res) => res.json())
-      .then((data) => setMessages((data.conversations || []).slice(0, 5)));
-  }, [userId]);
+    loadRecent();
+    socketService.connect();
+    socketService.joinUserRoom(userId);
+    const handleNotification = () => loadRecent();
+    socketService.onNewNotification(handleNotification);
+    const pollInterval = setInterval(() => loadRecent(), 10000);
+    return () => {
+      socketService.removeListener("new-notification");
+      clearInterval(pollInterval);
+    };
+  }, [userId, loadRecent]);
   if (!userId) return null;
   return (
     <div className="bg-white rounded-2xl shadow p-4 mb-6">
       <h3 className="font-bold text-lg mb-2">Recent Messages</h3>
-      {messages.length === 0 ? (
-        <div className="text-gray-400 text-sm">No recent messages</div>
+      {conversations.length === 0 ? (
+        <div className="text-gray-400 text-sm flex items-center gap-2">
+          <MessageCircle className="w-4 h-4" /> No recent messages
+        </div>
       ) : (
         <ul>
-          {messages.map((msg) => {
-            const partnerId = msg.user1_id === userId ? msg.user2_id : msg.user1_id;
-            const partnerName = `User ${partnerId}`;
-            return (
-              <li key={msg.id} className="mb-2">
-                <div className="font-semibold">{partnerName}</div>
-                <div className="text-xs text-gray-500 truncate">{msg.last_message}</div>
-                <div className="text-xs text-gray-400">{new Date(msg.updated_at).toLocaleString()}</div>
-              </li>
-            );
-          })}
+          {conversations.map((conv) => (
+            <li key={conv.id} className="mb-2">
+              <div className="font-semibold text-sm">{conv.participantName}</div>
+              <div className="text-xs text-gray-500 truncate">{conv.lastMessage}</div>
+            </li>
+          ))}
         </ul>
       )}
       <div className="mt-2 text-right">
@@ -250,7 +267,7 @@ const Dashboard = () => {
             <div className="space-y-6">
               <QuickActions />
               <RecentActivity />
-              {user && <RecentMessages userId={user.id} />}
+              {user && <RecentMessages userId={user.id} userType={user.user_type} />}
             </div>
           </div>
         </div>

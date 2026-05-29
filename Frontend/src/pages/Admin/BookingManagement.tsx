@@ -23,7 +23,9 @@ interface Booking {
   check_in: string;
   check_out: string;
   total_price: number;
-  status: "confirmed" | "completed" | "cancelled";
+  status: "pending" | "processing" | "confirmed" | "completed" | "cancelled";
+  payment_status: string;
+  payment_type: string;
   created_at: string;
 }
 
@@ -40,7 +42,8 @@ const BookingManagement = () => {
     setError("");
     try {
       const response = await API.get("admin/bookings/");
-      setBookings(response.data.results || []);
+      const data = response.data;
+      setBookings(Array.isArray(data) ? data : (data.results || []));
     } catch (err: any) {
       let errorMessage = "Failed to fetch bookings";
       
@@ -101,6 +104,10 @@ const BookingManagement = () => {
         return "bg-blue-100 text-blue-800";
       case "cancelled":
         return "bg-red-100 text-red-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "processing":
+        return "bg-purple-100 text-purple-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -114,6 +121,10 @@ const BookingManagement = () => {
         return "🔵";
       case "cancelled":
         return "🔴";
+      case "pending":
+        return "🟡";
+      case "processing":
+        return "🟣";
       default:
         return "⚪";
     }
@@ -136,10 +147,22 @@ const BookingManagement = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 mb-8">
           <div className="bg-white p-4 rounded-lg border border-gray-200">
-            <p className="text-gray-600 text-sm font-medium">Total Bookings</p>
+            <p className="text-gray-600 text-sm font-medium">Total</p>
             <p className="text-2xl font-bold text-gray-900">{bookings.length}</p>
+          </div>
+          <div className="bg-white p-4 rounded-lg border border-gray-200">
+            <p className="text-yellow-600 text-sm font-medium">🟡 Pending</p>
+            <p className="text-2xl font-bold text-yellow-600">
+              {bookings.filter((b) => b.status === "pending").length}
+            </p>
+          </div>
+          <div className="bg-white p-4 rounded-lg border border-gray-200">
+            <p className="text-purple-600 text-sm font-medium">🟣 Processing</p>
+            <p className="text-2xl font-bold text-purple-600">
+              {bookings.filter((b) => b.status === "processing").length}
+            </p>
           </div>
           <div className="bg-white p-4 rounded-lg border border-gray-200">
             <p className="text-green-600 text-sm font-medium">🟢 Confirmed</p>
@@ -251,6 +274,8 @@ const BookingManagement = () => {
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                         >
                           <option value="">Select Status</option>
+                          <option value="pending">Pending</option>
+                          <option value="processing">Processing</option>
                           <option value="confirmed">Confirmed</option>
                           <option value="completed">Completed</option>
                           <option value="cancelled">Cancelled</option>

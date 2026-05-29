@@ -23,6 +23,19 @@ export default function MyBooking() {
     }
   };
 
+  const getStatusLabel = (status: string): string => {
+    switch(status.toLowerCase()) {
+      case 'confirmed':
+        return 'Booked';
+      case 'pending':
+        return 'Pending';
+      case 'processing':
+        return 'Processing';
+      default:
+        return status;
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch(status.toLowerCase()) {
       case 'confirmed':
@@ -96,7 +109,7 @@ export default function MyBooking() {
                     <div className={`flex items-center gap-1.5 ${getStatusColor(booking.status)} px-3 py-1 rounded-full border`}>
                       <CheckCircle2 size={12} />
                       <span className="text-[9px] font-bold uppercase tracking-widest">
-                        {booking.status}
+                        {getStatusLabel(booking.status)}
                       </span>
                     </div>
                   </div>
@@ -126,7 +139,7 @@ export default function MyBooking() {
                   {/* Footer of the booking card */}
                   <div className="flex justify-between items-center pt-4 border-t border-slate-50">
                     <div className="text-[9px] font-bold uppercase tracking-widest">
-                      <p className="text-slate-400">Status: <span className={getStatusColor(booking.status).split(' ')[1]}>{booking.status.toUpperCase()}</span></p>
+                      <p className="text-slate-400">Status: <span className={getStatusColor(booking.status).split(' ')[1]}>{getStatusLabel(booking.status).toUpperCase()}</span></p>
                     </div>
                     
                     <button className="flex items-center gap-1.5 text-[#A989C8] font-bold text-[10px] uppercase tracking-widest hover:opacity-70 transition-all">

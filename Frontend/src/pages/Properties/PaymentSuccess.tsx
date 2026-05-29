@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
 import PublicNavbar from '../../components/Navbar/PublicNavbar';
 import Footer from '../../components/Footer';
 import API from '../../services/api';
@@ -15,25 +15,52 @@ const PaymentSuccess: React.FC = () => {
   const [refId, setRefId] = useState('');
 
   useEffect(() => {
-    verifyPayment();
+    const searchParams = new URLSearchParams(window.location.search);
+    const hasUrlParams = searchParams.get('oid') || searchParams.get('refId');
+
+    if (hasUrlParams) {
+      verifyPayment();
+    } else {
+      fetchBookingDetails();
+    }
   }, [bookingId]);
+
+  const fetchBookingDetails = async () => {
+    try {
+      const response = await API.get(`bookings/${bookingId}/`);
+      setBookingData(response.data);
+      setTransactionId(response.data.esewa_ref_id || '');
+      setRefId(response.data.esewa_ref_id || '');
+      setVerifying(false);
+    } catch (error: any) {
+      console.error('Error fetching booking details:', error);
+      setError(error.response?.data?.error || error.message || 'Failed to load booking details');
+      setVerifying(false);
+    }
+  };
 
   const verifyPayment = async () => {
     try {
-      // Get eSewa response from URL params
+      // Get eSewa response from URL query params
+      // eSewa sandbox redirects with: oid, refId, amount, scd, signature
       const searchParams = new URLSearchParams(window.location.search);
       
       const esewaResponse = {
-        oid: searchParams.get('oid'), // eSewa transaction ID
-        refId: searchParams.get('refId'),
-        amount: searchParams.get('amt'),
+        oid: searchParams.get('oid') || searchParams.get('transaction_id'),
+        refId: searchParams.get('refId') || searchParams.get('ref_id'),
+        amount: searchParams.get('amount') || searchParams.get('amt'),
         scd: searchParams.get('scd'),
         signature: searchParams.get('signature'),
       };
 
+      // Validate required fields
+      if (!esewaResponse.oid || !esewaResponse.refId || !esewaResponse.signature) {
+        throw new Error('Missing payment response parameters from eSewa');
+      }
+
       // Save for display
-      setTransactionId(esewaResponse.oid || '');
-      setRefId(esewaResponse.refId || '');
+      setTransactionId(esewaResponse.oid);
+      setRefId(esewaResponse.refId);
 
       // Verify payment with backend
       const response = await API.post('payment/esewa/verify/', esewaResponse);
@@ -149,8 +176,10 @@ const PaymentSuccess: React.FC = () => {
                     </div>
                     <div className="flex justify-between items-center py-2">
                       <span className="text-gray-600">Status</span>
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-blue-100 text-blue-800">
-                        {bookingData.status?.toUpperCase() || 'PROCESSING'}
+                      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${
+                        bookingData.status === 'confirmed' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {bookingData.status === 'confirmed' ? 'BOOKED' : (bookingData.status?.toUpperCase() || 'PROCESSING')}
                       </span>
                     </div>
                     <div className="flex justify-between items-center py-2">

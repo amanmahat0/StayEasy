@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import { useRef } from "react";
 
 interface ImageUploaderProps {
   roomId: string;
@@ -9,50 +9,39 @@ interface ImageUploaderProps {
   onUploadComplete?: (file: File | null, caption?: string) => void;
 }
 
-const ImageUploader: React.FC<ImageUploaderProps> = ({ onUploadStart, onUploadComplete }) => {
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [caption, setCaption] = useState("");
+export default function ImageUploader({ onUploadStart, onUploadComplete }: ImageUploaderProps) {
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setPreview(URL.createObjectURL(file));
-      if (onUploadStart) onUploadStart();
-      if (onUploadComplete) onUploadComplete(file, caption);
+    if (!file) {
+      onUploadComplete?.(null);
+      return;
     }
+    onUploadStart?.();
+    onUploadComplete?.(file);
   };
 
   return (
-    <div className="flex items-center">
-      <button
-        type="button"
-        className="p-2 text-gray-500 hover:text-blue-500"
-        onClick={() => fileInput.current?.click()}
-      >
-        <span role="img" aria-label="image">🖼️</span>
-      </button>
+    <>
       <input
+        ref={fileRef}
         type="file"
         accept="image/*"
-        ref={fileInput}
-        style={{ display: "none" }}
-        onChange={handleFileChange}
+        className="hidden"
+        onChange={handleChange}
       />
-      {preview && (
-        <div className="ml-2 flex flex-col items-start">
-          <img src={preview} alt="preview" className="w-16 h-16 object-cover rounded mb-1" />
-          <input
-            type="text"
-            placeholder="Add a caption..."
-            value={caption}
-            onChange={e => setCaption(e.target.value)}
-            className="border rounded px-2 py-1 text-xs"
-          />
-        </div>
-      )}
-    </div>
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        className="p-1.5 text-gray-500 hover:text-[#A989C8]"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </button>
+    </>
   );
-};
-
-export default ImageUploader;
+}

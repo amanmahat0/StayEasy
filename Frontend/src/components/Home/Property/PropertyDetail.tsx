@@ -17,6 +17,8 @@ import {
   ChevronRight,
   Phone,
   MessageCircle,
+  X,
+  AlertCircle,
 } from "lucide-react";
 
 import PublicNavbar from "../../Navbar/PublicNavbar";
@@ -25,6 +27,10 @@ import PropertyMapDisplay from '../../Map/PropertyMapDisplay';
 import { getPropertyDetail } from "../../../services/api";
 import { AuthContext } from "../../../context/AuthContext";
 import chatService from "../../../services/chatService";
+import { canChat, toConversationView } from "../../../utils/chatUtils";
+import ConversationWindow from "../../Chat/ConversationWindow";
+import type { ConversationView } from "../../../type";
+import axios from "axios";
 
 export default function PropertyDetails() {
   const navigate = useNavigate();
@@ -35,6 +41,19 @@ export default function PropertyDetails() {
   const [error, setError] = useState<string | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showLightbox, setShowLightbox] = useState(false);
+  const [chatOverlay, setChatOverlay] = useState<ConversationView | null>(null);
+  
+  // Cancellation modal state
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [refundInfo, setRefundInfo] = useState<{
+    refund_amount: number;
+    refund_percentage: number;
+    policy_applied: string;
+  } | null>(null);
+  const [bookingStatus, setBookingStatus] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProperty = async () => {
@@ -109,6 +128,127 @@ export default function PropertyDetails() {
     { icon: Sofa, label: "Furnished", available: true },
     { icon: CheckCircle2, label: "Balcony", available: true },
   ];
+
+  // Handler for opening cancel modal and calculating refund
+  const handleOpenCancelModal = async () => {
+    if (!property.booking_id) return;
+
+    setCancelError(null);
+    setRefundInfo(null);
+
+    try {
+      // Use booking check-in date from property data
+      // The backend now provides booking_check_in, booking_check_out, booking_total_price
+      const moveInDate = new Date(property.booking_check_in || Date.now());
+      const today = new Date();
+      const daysUntilMoveIn = Math.floor(
+        (moveInDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      // Use booking total price from backend
+      const totalAmount = property.booking_total_price || parseInt(property.price);
+      let refundPercentage = 0;
+      let policyText = "";
+
+      // Debug logging
+      console.log("🔍 [CANCEL MODAL DEBUG]");
+      console.log("  Booking ID:", property.booking_id);
+      console.log("  Booking Check-in:", property.booking_check_in);
+      console.log("  Move-in Date:", moveInDate);
+      console.log("  Days until move-in:", daysUntilMoveIn);
+      console.log("  Total Amount:", totalAmount);
+
+      if (daysUntilMoveIn >= 7) {
+        refundPercentage = 100;
+        policyText = "Full refund (7+ days before move-in)";
+      } else if (daysUntilMoveIn >= 3) {
+        refundPercentage = 50;
+        policyText = "50% refund (3-6 days before move-in)";
+      } else if (daysUntilMoveIn > 0) {
+        refundPercentage = 0;
+        policyText = "No refund (Less than 3 days before move-in)";
+      } else {
+        refundPercentage = 0;
+        policyText = "No refund (Move-in date has passed)";
+      }
+
+      const refundAmount = totalAmount * (refundPercentage / 100);
+
+      console.log("  Refund Percentage:", refundPercentage);
+      console.log("  Refund Amount:", refundAmount);
+
+      setRefundInfo({
+        refund_amount: refundAmount,
+        refund_percentage: refundPercentage,
+        policy_applied: policyText,
+      });
+
+      setShowCancelModal(true);
+    } catch (err) {
+      console.error("Error calculating refund:", err);
+      setCancelError("Failed to calculate refund. Please try again.");
+    }
+  };
+
+  // Handler for confirming cancellation
+  const handleConfirmCancel = async () => {
+    if (!property.booking_id) return;
+
+    setCancelLoading(true);
+    setCancelError(null);
+
+    try {
+      const token = localStorage.getItem("access");
+      if (!token) {
+        setCancelError("Authentication token not found. Please login again.");
+        setCancelLoading(false);
+        return;
+      }
+
+      // Call the cancel booking API
+      const response = await axios.post(
+        `http://127.0.0.1:8000/api/users/bookings/${property.booking_id}/cancel/`,
+        { reason: "User requested cancellation" },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (response.status === 200) {
+        // Success!
+        setSuccessMessage(
+          `Booking cancelled successfully. Refund of NPR ${refundInfo?.refund_amount.toLocaleString()} will be processed.`
+        );
+
+        // Update property state to show cancelled status
+        setProperty((prev: any) => ({
+          ...prev,
+          has_confirmed_booking: false,
+          booking_status: "cancelled",
+        }));
+
+        setBookingStatus("cancelled");
+        setShowCancelModal(false);
+
+        // Show success message for 5 seconds then hide
+        setTimeout(() => {
+          setSuccessMessage(null);
+        }, 5000);
+      }
+    } catch (err: any) {
+      console.error("Error cancelling booking:", err);
+      const errorMsg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        "Failed to cancel booking. Please try again.";
+      setCancelError(errorMsg);
+    } finally {
+      setCancelLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -226,13 +366,11 @@ export default function PropertyDetails() {
                 
                 <div>
   <p className="text-gray-500 text-sm font-medium mb-2">Status</p>
-  <p className={`text-xl font-bold capitalize ${
-    property.status === "available" ? "text-green-600" :
-    property.status === "pending" ? "text-yellow-500" :
-    property.status === "booked" ? "text-red-500" :
-    "text-green-600"
+  <p className={`text-xl font-bold capitalize flex items-center gap-2 ${
+    property.has_confirmed_booking ? "text-red-500" : "text-green-600"
   }`}>
-    {property.status || "Available"}
+    <span className={`w-3 h-3 rounded-full ${property.has_confirmed_booking ? "bg-red-500" : "bg-green-500"}`} />
+    {property.has_confirmed_booking ? "Booked" : "Available"}
   </p>
 </div>
 
@@ -258,13 +396,13 @@ export default function PropertyDetails() {
 {/* Owner */}
 <div className="bg-white rounded-3xl shadow-lg p-8">
   <h2 className="text-2xl font-bold text-gray-900 mb-6">
-    Hosted by {property.owner_name || "Owner"}
+    Hosted by {property.owner_name || property.landlord_name || "Owner"}
   </h2>
 
   <div className="flex items-start justify-between mb-8">
     <div className="flex items-center gap-4">
       <div className="w-16 h-16 bg-gradient-to-br from-[#A989C8] to-[#8d6aa9] rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-        {property.owner_name?.charAt(0)?.toUpperCase() || "O"}
+        {(property.owner_name || property.landlord_name || "O").charAt(0).toUpperCase()}
       </div>
 
       <div>
@@ -281,38 +419,33 @@ export default function PropertyDetails() {
   </div>
 
   <div className="grid grid-cols-2 gap-4">
-    <button
-      onClick={async () => {
-        if (!authContext?.user) {
-          navigate("/login");
-          return;
-        }
+    {canChat(authContext?.user || null) && (
+      <button
+        onClick={async () => {
+          if (!authContext?.user) {
+            navigate("/login");
+            return;
+          }
 
-        try {
-          const response =
-            await chatService.createConversation(
-              property.owner_id
-            );
+          try {
+            const userId = authContext.user.id;
+            const propertyId = parseInt(id || "0");
 
-          if (!response) return;
+            const conv = await chatService.getOrCreateConversation(userId, property.landlord_id, propertyId);
 
-          navigate("/messages", {
-            state: {
-              roomId: response.room_id,
-            },
-          });
-        } catch (err) {
-          console.error(
-            "Failed to create conversation",
-            err
-          );
-        }
-      }}
-      className="flex items-center justify-center gap-2 py-4 bg-[#A989C8] hover:bg-[#8d6aa9] text-white font-bold rounded-xl transition shadow-lg"
-    >
-      <MessageCircle className="w-5 h-5" />
-      Chat with Owner
-    </button>
+            if (conv && authContext.user) {
+              setChatOverlay(toConversationView(conv, authContext.user.id, authContext.user.user_type));
+            }
+          } catch (err) {
+            console.error("Failed to start chat", err);
+          }
+        }}
+        className="flex items-center justify-center gap-2 py-4 bg-[#A989C8] hover:bg-[#8d6aa9] text-white font-bold rounded-xl transition shadow-lg"
+      >
+        <MessageCircle className="w-5 h-5" />
+        Chat with Owner
+      </button>
+    )}
 
     <button className="flex items-center justify-center gap-2 py-4 border-2 border-[#A989C8] text-[#A989C8] hover:bg-[#A989C8] hover:text-white font-bold rounded-xl transition">
       <Phone className="w-5 h-5" />
@@ -339,7 +472,41 @@ export default function PropertyDetails() {
                 </div>
                 <div className="flex justify-between mb-6"><span className="font-bold text-gray-900">Total (First Month)</span><span className="text-2xl font-bold text-[#A989C8]">NPR {(parseInt(property.price) * 3.05).toLocaleString()}</span></div>
                 <div className="mb-6"><label className="text-xs font-bold text-gray-700 uppercase block mb-2">Move-in Date</label><input type="date" className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#A989C8]" /></div>
-                <button onClick={() => id && navigate(`/booking/${id}`)} className="w-full py-4 bg-[#A989C8] hover:bg-[#8d6aa9] text-white font-bold rounded-xl shadow-lg transition mb-3">Book Now</button>
+                {property.booking_status === "cancelled" ? (
+                  <>
+                    <button disabled className="w-full py-4 bg-gray-400 text-white font-bold rounded-xl shadow-lg mb-3 cursor-not-allowed flex items-center justify-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-white" /> Booked
+                    </button>
+                    <button disabled className="w-full py-4 bg-orange-500 text-white font-bold rounded-xl shadow-lg mb-3 cursor-not-allowed flex items-center justify-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-white" /> Cancelled
+                    </button>
+                  </>
+                ) : property.has_confirmed_booking ? (
+                  <>
+                    <button disabled className="w-full py-4 bg-gray-400 text-white font-bold rounded-xl shadow-lg mb-3 cursor-not-allowed flex items-center justify-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-white" /> Booked
+                    </button>
+                    <button
+                      onClick={handleOpenCancelModal}
+                      disabled={cancelLoading}
+                      className="w-full py-4 bg-[#A989C8] hover:bg-[#8d6aa9] text-white font-bold rounded-xl shadow-lg mb-3 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {cancelLoading ? (
+                        <>
+                          <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                          Cancelling...
+                        </>
+                      ) : (
+                        <>
+                          <X size={18} />
+                          Cancel Booking
+                        </>
+                      )}
+                    </button>
+                  </>
+                ) : (
+                  <button onClick={() => id && navigate(`/booking/${id}`)} className="w-full py-4 bg-[#A989C8] hover:bg-[#8d6aa9] text-white font-bold rounded-xl shadow-lg transition mb-3">Book Now</button>
+                )}
                 <p className="text-xs text-gray-500 text-center mb-6">You won't be charged yet</p>
                 <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                   <div className="flex items-start gap-3"><ShieldCheck className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" /><div><p className="font-bold text-gray-900 text-sm">Flexible cancellation</p><p className="text-xs text-gray-600 mt-1">Full refund if you cancel 7 days before check-in</p></div></div>
@@ -379,6 +546,145 @@ export default function PropertyDetails() {
       </main>
 
       <Footer />
+
+      {chatOverlay && authContext?.user && (
+        <ConversationWindow
+          conversation={chatOverlay}
+          currentUser={authContext.user}
+          onClose={() => setChatOverlay(null)}
+          onMinimize={() => setChatOverlay(null)}
+          onDelete={() => setChatOverlay(null)}
+        />
+      )}
+
+      {/* Success Toast */}
+      {successMessage && (
+        <div className="fixed bottom-6 right-6 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 z-50 animate-slide-in">
+          <CheckCircle2 size={20} />
+          <span className="font-medium">{successMessage}</span>
+        </div>
+      )}
+
+      {/* Cancel Booking Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
+            {/* Header */}
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">Cancel your booking?</h2>
+                <p className="text-gray-600 text-sm mt-1">Review the cancellation details below</p>
+              </div>
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Booking Details */}
+            <div className="bg-gray-50 rounded-xl p-6 mb-6 space-y-4">
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Property</p>
+                <p className="text-gray-900 font-semibold">{property.title}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Move-in Date</p>
+                <p className="text-gray-900 font-semibold">
+                  {property.booking_check_in 
+                    ? new Date(property.booking_check_in).toLocaleDateString('en-US', { 
+                        weekday: 'short', 
+                        year: 'numeric', 
+                        month: 'short', 
+                        day: 'numeric' 
+                      })
+                    : 'Not specified'
+                  }
+                </p>
+              </div>
+              <div className="border-t border-gray-200 pt-4">
+                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Amount Paid</p>
+                <p className="text-lg font-bold text-gray-900">
+                  NPR {(property.booking_total_price || 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            {/* Refund Information */}
+            {refundInfo && (
+              <div className={`rounded-xl p-6 mb-6 border-2 ${
+                refundInfo.refund_percentage === 100 
+                  ? 'bg-green-50 border-green-200'
+                  : refundInfo.refund_percentage === 50 
+                  ? 'bg-orange-50 border-orange-200'
+                  : 'bg-red-50 border-red-200'
+              }`}>
+                <div className="flex items-start gap-3 mb-3">
+                  {refundInfo.refund_percentage === 100 ? (
+                    <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-gray-900">{refundInfo.policy_applied}</p>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center pt-3 border-t border-gray-300">
+                  <span className="text-gray-700 font-semibold">Refund Amount:</span>
+                  <span className="text-xl font-bold text-gray-900">
+                    NPR {Math.round(refundInfo.refund_amount).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {cancelError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-700">{cancelError}</p>
+              </div>
+            )}
+
+            {/* Cancellation Policy Notice */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-xs text-blue-900 font-medium">
+                <strong>Cancellation Policy:</strong> Cancellations made 7+ days before check-in receive a full refund. 
+                Cancellations made 3-6 days before receive 50% refund. Cancellations made less than 3 days before receive no refund.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="flex-1 py-3 border-2 border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition disabled:opacity-50"
+                disabled={cancelLoading}
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={cancelLoading}
+                className="flex-1 py-3 bg-[#A989C8] text-white font-bold rounded-xl hover:bg-[#8d6aa9] transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {cancelLoading ? (
+                  <>
+                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <X size={18} />
+                    Yes, Cancel Booking
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

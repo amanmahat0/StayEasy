@@ -46,6 +46,12 @@ from .views import (
     ViewedPropertyListView,
     ViewPropertyView,
 )
+from .notification_views import (
+    NotificationListView,
+    NotificationDetailView,
+    NotificationUnreadCountView,
+    MarkAllNotificationsReadView,
+)
 from .chat_views import (
     UserChatListView,
     LandlordChatListView,
@@ -56,11 +62,8 @@ from .chat_views import (
     StartChatFromPropertyView,
     ConversationListView,
     ConversationDetailView,
-    ConversationMessagesView,
-    CreateConversationMessageView,
+    ConversationMessageView,
     GetOrCreateConversationView,
-    MarkConversationReadView,
-    DeleteConversationView,
 )
 
 urlpatterns = [
@@ -135,11 +138,8 @@ urlpatterns = [
     # New conversation endpoints (Socket.IO compatible)
     path('chat/conversations/', ConversationListView.as_view(), name='conversation-list'),
     path('chat/conversations/<int:id>/', ConversationDetailView.as_view(), name='conversation-detail'),
-    path('chat/conversations/<int:id>/messages/', ConversationMessagesView.as_view(), name='conversation-messages'),
-    path('chat/conversations/<int:id>/messages/', CreateConversationMessageView.as_view(), name='create-conversation-message'),
+    path('chat/conversations/<int:id>/messages/', ConversationMessageView.as_view(), name='conversation-messages'),
     path('chat/get-or-create/', GetOrCreateConversationView.as_view(), name='get-or-create-conversation'),
-    path('chat/conversations/<int:id>/mark-read/', MarkConversationReadView.as_view(), name='mark-read'),
-    path('chat/conversations/<int:id>/', DeleteConversationView.as_view(), name='delete-conversation'),
     
     # Landlord chat endpoints
     path('landlord/chats/', LandlordChatListView.as_view(), name='landlord-chat-list'),
@@ -163,4 +163,12 @@ urlpatterns = [
     # Admin Booking Management
     path('admin/bookings/', AdminBookingListView.as_view(), name='admin-booking-list'),
     path('admin/bookings/<int:id>/update-status/', AdminBookingUpdateStatusView.as_view(), name='admin-booking-update-status'),
+    
+    # =====================================================
+    # NOTIFICATION ENDPOINTS
+    # =====================================================
+    path('notifications/', NotificationListView.as_view(), name='notification-list'),
+    path('notifications/<int:pk>/', NotificationDetailView.as_view(), name='notification-detail'),
+    path('notifications/unread-count/', NotificationUnreadCountView.as_view(), name='notification-unread-count'),
+    path('notifications/mark-all-read/', MarkAllNotificationsReadView.as_view(), name='notification-mark-all-read'),
 ]

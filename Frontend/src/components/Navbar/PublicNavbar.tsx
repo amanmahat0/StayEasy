@@ -1,7 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Home, ChevronDown, LogOut, Settings, MessageCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import chatService from "../../services/chatService";
+import socketService from "../../services/socketService";
+import NotificationsDropdown from "./NotificationsDropdown";
+import type { MessagePayload } from "../../type";
 
 export default function PublicNavbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -9,30 +13,44 @@ export default function PublicNavbar() {
   const navigate = useNavigate();
   const [unread, setUnread] = useState(0);
 
+  const refreshUnread = useCallback(() => {
+    if (!user?.id) return;
+    chatService.getConversations().then((conversations) => {
+      const count = conversations.reduce(
+        (sum, c) => sum + (c.unread_count || 0), 0
+      );
+      setUnread(count);
+    });
+  }, [user]);
+
   useEffect(() => {
     if (!user?.id) return;
-    // Define expected types for the response
-    type Conversation = { unread_count?: number };
-    type ConversationsResponse = { conversations?: Conversation[] };
-    // Fetch unread count from backend
-    fetch(`/api/conversations/${user.id}`)
-      .then((res) => res.json())
-      .then((data: ConversationsResponse) => {
-        // Assume each conversation has unread_count (add this in backend if needed)
-        const conversations = data.conversations || [];
-        const count = conversations.reduce(
-          (sum: number, c: Conversation) => sum + (c.unread_count || 0),
-          0
-        );
-        setUnread(count);
-      })
-      .catch(() => {
-        // ignore errors for now
-      });
-    // Listen for new messages via Socket.IO
-    // (Assume socketService is globally available or import it)
-    // socketService.onMessageReceived(() => setUnread((u) => u + 1));
-  }, [user]);
+    refreshUnread();
+  }, [user, refreshUnread]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    socketService.connect();
+    socketService.joinUserRoom(user.id);
+
+    const handleMessage = (msg: MessagePayload) => {
+      if (msg.userId !== user.id) {
+        refreshUnread();
+      }
+    };
+    const handleNotification = () => refreshUnread();
+
+    socketService.onMessageReceived(handleMessage);
+    socketService.onNewNotification(handleNotification);
+
+    const pollInterval = setInterval(() => refreshUnread(), 10000);
+
+    return () => {
+      socketService.removeListener("receive-message");
+      socketService.removeListener("new-notification");
+      clearInterval(pollInterval);
+    };
+  }, [user, refreshUnread]);
 
   const role = user?.user_type;
 
@@ -96,6 +114,9 @@ export default function PublicNavbar() {
                 )}
               </Link>
             )}
+
+            {/* NOTIFICATIONS ICON */}
+            {user && <NotificationsDropdown />}
 
             {user ? (
               <div className="relative">

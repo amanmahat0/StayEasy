@@ -11,7 +11,10 @@ from django.core.mail import send_mail
 from django.db.models import Q
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import Profile, KYC, Property, PropertyImage, Booking, Favorite, ViewedProperty, LandlordUser
+from .models import (
+    Profile, KYC, Property, PropertyImage, Booking, Favorite, ViewedProperty, LandlordUser,
+    CancellationPolicy, Payment, Refund, Cancellation, Notification
+)
 from .serializers import (
     RegisterSerializer,
     VerifyEmailSerializer,
@@ -35,6 +38,7 @@ from .permissions import IsAdminUser
 from .services.esewa_service import EsewaPaymentService, create_esewa_payment_link
 from rest_framework.views import APIView
 from django.db import transaction
+from django.conf import settings
 
 # ----------------------
 # REGISTER USER
@@ -930,31 +934,34 @@ class InitiateEsewaPaymentView(views.APIView):
         """
         Initiate eSewa payment
         Expected body: {
-            "booking_id": 1,
-            "return_url": "https://yourapp.com/payment-success"
+            "booking_id": 1
         }
+        The success/failure URLs are auto-constructed from the request origin.
         """
         try:
             booking_id = request.data.get('booking_id')
-            return_url = request.data.get('return_url')
             
-            if not booking_id or not return_url:
+            if not booking_id:
                 return Response(
-                    {'error': 'booking_id and return_url are required'},
+                    {'error': 'booking_id is required'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
             # Get the booking
             booking = Booking.objects.get(id=booking_id, user=request.user)
             
+            # Use request origin for callback URLs
+            origin = request.META.get('HTTP_ORIGIN', 'http://localhost:5173')
+            
             # Initiate payment with eSewa 2.0
-            payment_data = create_esewa_payment_link(booking, return_url)
+            payment_data = create_esewa_payment_link(booking, origin)
             
             return Response({
                 'success': True,
                 'message': 'Payment initiated successfully',
                 'payment_data': payment_data,
                 'esewa_url': 'https://rc-epay.esewa.com.np/api/epay/main/v2/form',
+                'environment': getattr(settings, 'ESEWA_ENVIRONMENT', 'sandbox'),
             }, status=status.HTTP_200_OK)
             
         except Booking.DoesNotExist:
@@ -1029,12 +1036,12 @@ class VerifyEsewaPaymentView(views.APIView):
             # Get and update booking
             booking = Booking.objects.get(id=booking_id, user=request.user)
             
-            # Update booking with payment details
+            # Update booking with payment details — immediately confirmed
             booking.esewa_transaction_id = response_data.get('oid')
             booking.esewa_ref_id = response_data.get('refId')
             booking.payment_status = 'completed'
             booking.payment_method = 'esewa'
-            booking.status = 'processing'  # Payment successful, now processing
+            booking.status = 'confirmed'
             booking.save()
             
             return Response({
@@ -1043,7 +1050,7 @@ class VerifyEsewaPaymentView(views.APIView):
                 'booking_id': booking.id,
                 'transaction_id': response_data.get('oid'),
                 'payment_status': 'completed',
-                'booking_status': 'processing',
+                'booking_status': 'confirmed',
             }, status=status.HTTP_200_OK)
             
         except Booking.DoesNotExist:
@@ -1080,7 +1087,8 @@ class AdminBookingListView(generics.ListAPIView):
     def get_queryset(self):
         """Only admins can access this"""
         user = self.request.user
-        if not (user.is_superuser or user.profile.role == 'admin'):
+        is_admin = user.is_superuser or getattr(getattr(user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
             return Booking.objects.none()
         return Booking.objects.select_related('user', 'property').order_by('-created_at')
 
@@ -1097,75 +1105,254 @@ class AdminBookingUpdateStatusView(generics.UpdateAPIView):
     def get_queryset(self):
         """Only admins can access"""
         user = self.request.user
-        if not (user.is_superuser or user.profile.role == 'admin'):
+        is_admin = user.is_superuser or getattr(getattr(user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
             return Booking.objects.none()
         return Booking.objects.all()
 
     def perform_update(self, serializer):
         """Update booking status"""
         user = self.request.user
-        if not (user.is_superuser or user.profile.role == 'admin'):
+        is_admin = user.is_superuser or getattr(getattr(user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
             raise ValidationError({"error": "Only admins can update booking status"})
         
         booking = self.get_object()
         new_status = self.request.data.get('status')
         
-        if new_status not in ['confirmed', 'completed', 'cancelled']:
-            raise ValidationError({"error": "Invalid status"})
+        valid_statuses = ['pending', 'processing', 'confirmed', 'completed', 'cancelled']
+        if new_status not in valid_statuses:
+            raise ValidationError({"error": f"Invalid status. Must be one of: {', '.join(valid_statuses)}"})
         
-        print(f"\n📍 [ADMIN BOOKING] Admin {user.username} updating booking {booking.id}")
-        print(f"📍 [ADMIN BOOKING] Status: {booking.status} → {new_status}")
-        
-        serializer.save(status=new_status)
-        print(f"✅ [ADMIN BOOKING] Booking {booking.id} updated to {new_status}")
+        Booking.objects.filter(id=booking.id).update(status=new_status)
 
 
 # ----------------------
 # USER - BOOKING CANCEL
 # ----------------------
 class BookingCancelView(APIView):
-    """User: Cancel their own booking"""
+    """
+    User: Cancel their own booking
+    
+    POST /api/bookings/<booking_id>/cancel/
+    
+    Returns:
+    - booking_id: The cancelled booking ID
+    - status: New booking status ("cancelled")
+    - refund_amount: Amount being refunded to the tenant
+    - refund_percentage: Percentage of original amount being refunded
+    - policy_applied: Description of the policy applied
+    - message: Success message
+    """
     permission_classes = [permissions.IsAuthenticated]
 
-    def patch(self, request, id):
-        """Cancel a booking"""
+    @transaction.atomic
+    def post(self, request, id):
+        """Cancel a booking and process refund"""
         from django.utils import timezone
-        from datetime import timedelta
+        from decimal import Decimal
         
         user = request.user
         
+        # Get the booking
         try:
             booking = Booking.objects.get(id=id, user=user)
         except Booking.DoesNotExist:
             return Response(
-                {"error": "Booking not found"},
+                {"error": "Booking not found or you don't have permission to cancel it"},
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        # Can only cancel pending, processing, or confirmed bookings
-        if booking.status not in ['pending', 'processing', 'confirmed']:
+        # Only allow cancellation of confirmed bookings
+        if booking.status != 'confirmed':
             return Response(
-                {"error": f"Cannot cancel a {booking.status} booking"},
+                {
+                    "error": f"Cannot cancel a booking with status '{booking.status}'",
+                    "current_status": booking.status
+                },
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        # Check if booking was recently cancelled (within 24 hours) - prevent instant rebooking abuse
-        if booking.status == 'cancelled' and booking.cancelled_at:
-            time_since_cancel = timezone.now() - booking.cancelled_at
-            if time_since_cancel < timedelta(hours=24):
-                return Response(
-                    {"error": "You must wait 24 hours before rebooking the same property after cancellation"},
-                    status=status.HTTP_429_TOO_MANY_REQUESTS
+        # Check if already cancelled
+        if hasattr(booking, 'cancellation') and booking.cancellation:
+            return Response(
+                {"error": "This booking has already been cancelled"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        print(f"\n📍 [CANCEL BOOKING] User {user.username} initiating cancellation for booking {booking.id}")
+        
+        try:
+            # Get the cancellation policy
+            policy = CancellationPolicy.get_default_policy()
+            
+            # Calculate refund amount
+            refund_info = policy.calculate_refund_amount(booking)
+            refund_amount = Decimal(str(refund_info['refund_amount']))
+            
+            # Get the original payment
+            payment = booking.payments.filter(status='completed').first()
+            
+            if not payment:
+                # Create a payment record if it doesn't exist (for bookings that were paid)
+                payment = Payment.objects.create(
+                    booking=booking,
+                    tenant=user,
+                    amount=booking.total_price,
+                    status='completed',
+                    payment_method=booking.payment_method,
+                    transaction_id=booking.esewa_transaction_id
                 )
+            
+            # Update booking status
+            booking.status = 'cancelled'
+            booking.cancelled_at = timezone.now()
+            booking.save()
+            
+            # Make property available again
+            property_obj = booking.property
+            property_obj.available = True
+            property_obj.save()
+            
+            # Create cancellation record
+            cancellation = Cancellation.objects.create(
+                booking=booking,
+                cancelled_by=user,
+                reason=request.data.get('reason', 'User requested cancellation')
+            )
+            
+            # Create refund record
+            refund = Refund.objects.create(
+                payment=payment,
+                booking=booking,
+                refund_amount=refund_amount,
+                refund_percentage=refund_info['refund_percentage'],
+                status='pending',  # In a real system, this would be 'processed' after payment gateway processing
+                reason='Booking cancellation',
+                policy_applied=refund_info['policy_applied']
+            )
+            
+            # Mark payment as refunded if full refund
+            if refund_info['refund_percentage'] == 100:
+                payment.status = 'refunded'
+                payment.save()
+            
+            # Send notifications to tenant and landlord
+            self._send_cancellation_notifications(booking, refund_info, user)
+            
+            print(f"✅ [CANCEL BOOKING] Booking {booking.id} cancelled successfully")
+            print(f"   Refund Amount: {refund_amount} ({refund_info['refund_percentage']}%)")
+            print(f"   Policy: {refund_info['policy_applied']}")
+            
+            # Return response
+            return Response({
+                'booking_id': booking.id,
+                'status': booking.status,
+                'refund_amount': str(refund_amount),
+                'refund_percentage': refund_info['refund_percentage'],
+                'policy_applied': refund_info['policy_applied'],
+                'message': f"Booking cancelled successfully. You will receive NPR {refund_amount} refund."
+            }, status=status.HTTP_200_OK)
         
-        print(f"\n📍 [CANCEL BOOKING] User {user.username} cancelling booking {booking.id}")
-        booking.status = 'cancelled'
-        booking.cancelled_at = timezone.now()
-        booking.save()
-        print(f"✅ [CANCEL BOOKING] Booking {booking.id} cancelled")
+        except Exception as e:
+            print(f"❌ [CANCEL BOOKING] Error cancelling booking {booking.id}: {str(e)}")
+            return Response(
+                {"error": f"Failed to cancel booking: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def _send_cancellation_notifications(self, booking, refund_info, tenant_user):
+        """Send notifications to tenant and landlord about cancellation"""
+        from django.utils import timezone
         
-        serializer = BookingDetailSerializer(booking)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        try:
+            # Get the property owner (landlord)
+            property_obj = booking.property
+            landlord_user = property_obj.owner
+            
+            # Notify tenant
+            Notification.objects.create(
+                recipient=tenant_user,
+                notification_type='booking_cancelled',
+                title='Booking Cancelled',
+                message=f"Your booking for {property_obj.title} has been cancelled. "
+                        f"Refund amount: NPR {refund_info['refund_amount']} "
+                        f"({refund_info['refund_percentage']}% of total amount).",
+                related_entity_type='booking',
+                related_entity_id=booking.id
+            )
+            
+            # Notify landlord
+            Notification.objects.create(
+                recipient=landlord_user,
+                notification_type='booking_cancelled',
+                title='Booking Cancelled',
+                message=f"The booking for {property_obj.title} by {tenant_user.username} "
+                        f"(check-in: {booking.check_in}) has been cancelled by the tenant.",
+                related_entity_type='booking',
+                related_entity_id=booking.id
+            )
+            
+            # Send email to tenant
+            send_mail(
+                'Booking Cancelled - Refund Initiated',
+                f"""
+Hello {tenant_user.first_name or tenant_user.username},
+
+Your booking for {property_obj.title} has been cancelled.
+
+Booking Details:
+- Property: {property_obj.title}
+- Check-in: {booking.check_in}
+- Check-out: {booking.check_out}
+- Original Amount: NPR {booking.total_price}
+- Refund Amount: NPR {refund_info['refund_amount']}
+- Refund Percentage: {refund_info['refund_percentage']}%
+- Policy: {refund_info['policy_applied']}
+
+Your refund will be processed within 5-7 business days.
+
+Thank you for using StayEasy!
+
+Best regards,
+StayEasy Team
+                """,
+                'noreply@stayeasy.com',
+                [tenant_user.email],
+                fail_silently=True
+            )
+            
+            # Send email to landlord
+            send_mail(
+                'Booking Cancelled - Tenant Cancellation',
+                f"""
+Hello {landlord_user.first_name or landlord_user.username},
+
+A booking for your property has been cancelled.
+
+Booking Details:
+- Property: {property_obj.title}
+- Tenant: {tenant_user.first_name or tenant_user.username}
+- Check-in: {booking.check_in}
+- Check-out: {booking.check_out}
+- Original Amount: NPR {booking.total_price}
+- Tenant Refund: NPR {refund_info['refund_amount']}
+- Policy: {refund_info['policy_applied']}
+
+Best regards,
+StayEasy Team
+                """,
+                'noreply@stayeasy.com',
+                [landlord_user.email],
+                fail_silently=True
+            )
+            
+            print(f"✅ [NOTIFICATIONS] Sent to tenant and landlord for booking {booking.id}")
+        
+        except Exception as e:
+            print(f"⚠️ [NOTIFICATIONS] Failed to send notifications: {str(e)}")
+            # Don't fail the cancellation if notifications fail
+
 
 
 # =====================================================
@@ -1182,7 +1369,8 @@ class AdminUserListView(generics.ListAPIView):
     def get_queryset(self):
         """Only admins can access"""
         user = self.request.user
-        if not (user.is_superuser or user.profile.role == 'admin'):
+        is_admin = user.is_superuser or getattr(getattr(user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
             return User.objects.none()
         
         # Get users with user_type='tenant' (exclude admins)
@@ -1201,11 +1389,9 @@ class AdminUserListView(generics.ListAPIView):
             return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
         
         # Check if user is admin (superuser or has admin role)
-        try:
-            if not (user.is_superuser or user.profile.role == 'admin'):
-                return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
-        except AttributeError:
-            return Response({"error": "User profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+        is_admin = user.is_superuser or getattr(getattr(user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
         
         queryset = self.get_queryset()
         users_data = []
@@ -1240,7 +1426,8 @@ class AdminLandlordListView(generics.ListAPIView):
     def get_queryset(self):
         """Only admins can access"""
         user = self.request.user
-        if not (user.is_superuser or user.profile.role == 'admin'):
+        is_admin = user.is_superuser or getattr(getattr(user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
             return User.objects.none()
         
         # Get users with user_type='owner' (landlords) but exclude admins
@@ -1259,11 +1446,9 @@ class AdminLandlordListView(generics.ListAPIView):
             return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
         
         # Check if user is admin (superuser or has admin role)
-        try:
-            if not (user.is_superuser or user.profile.role == 'admin'):
-                return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
-        except AttributeError:
-            return Response({"error": "User profile not found"}, status=status.HTTP_400_BAD_REQUEST)
+        is_admin = user.is_superuser or getattr(getattr(user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
         
         queryset = self.get_queryset()
         landlords_data = []

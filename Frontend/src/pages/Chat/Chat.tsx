@@ -1,5 +1,23 @@
+import { useContext } from "react";
+import { useLocation, Navigate } from "react-router-dom";
+import { AuthContext } from "../../context/AuthContext";
+import { canChat } from "../../utils/chatUtils";
 import ChatInbox from "../../components/Chat/ChatInbox";
+import PublicNavbar from "../../components/Navbar/PublicNavbar";
 
 export default function Chat() {
-  return <ChatInbox />;
+  const { user } = useContext(AuthContext) || {};
+  const location = useLocation();
+  const initialConversationId = (location.state as { conversationId?: number })?.conversationId;
+
+  if (!canChat(user)) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <div className="min-h-screen bg-white">
+      <PublicNavbar />
+      <ChatInbox initialConversationId={initialConversationId} />
+    </div>
+  );
 }

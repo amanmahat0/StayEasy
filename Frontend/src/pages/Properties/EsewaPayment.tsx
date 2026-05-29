@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, ShieldCheck } from 'lucide-react';
 import PublicNavbar from '../../components/Navbar/PublicNavbar';
 import Footer from '../../components/Footer';
 import API from '../../services/api';
@@ -10,6 +10,7 @@ const EsewaPayment: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [environment, setEnvironment] = useState('sandbox');
 
   useEffect(() => {
     initiatePayment();
@@ -17,22 +18,23 @@ const EsewaPayment: React.FC = () => {
 
   const initiatePayment = async () => {
     try {
-      // Get payment initiation data from backend
       const paymentResponse = await API.post('payment/esewa/initiate/', {
         booking_id: bookingId,
       });
 
+      if (paymentResponse.data?.environment) {
+        setEnvironment(paymentResponse.data.environment);
+      }
+
       if (paymentResponse.data && paymentResponse.data.payment_data) {
         const paymentData = paymentResponse.data.payment_data;
-        
-        // Create and submit form to eSewa
         submitEsewaForm(paymentData);
       } else {
         throw new Error('Invalid payment data received');
       }
     } catch (error: any) {
       console.error('Payment error:', error);
-      setError(error.response?.data?.detail || 'Failed to initiate payment. Please try again.');
+      setError(error.response?.data?.error || 'Failed to initiate payment. Please try again.');
     }
   };
 
@@ -40,7 +42,7 @@ const EsewaPayment: React.FC = () => {
     try {
       const form = document.createElement('form');
       form.method = 'POST';
-      form.action = 'https://rc-epay.esewa.com.np/api/epay/main/v2/form';
+      form.action = paymentData.formUrl || 'https://rc-epay.esewa.com.np/api/epay/main/v2/form';
 
       const formFields: { [key: string]: string } = {
         amt: String(paymentData.amt || 0),
@@ -50,11 +52,10 @@ const EsewaPayment: React.FC = () => {
         tAmt: String(paymentData.tAmt || 0),
         pid: String(paymentData.pid || bookingId),
         scd: String(paymentData.scd || 'EPAYTEST'),
-        su: String(paymentData.su || `${window.location.origin}/payment-success/${bookingId}`),
-        fu: String(paymentData.fu || `${window.location.origin}/payment-failed/${bookingId}`),
+        su: String(paymentData.su || `${window.location.origin}/payment/${bookingId}/success`),
+        fu: String(paymentData.fu || `${window.location.origin}/payment/${bookingId}/failed`),
       };
 
-      // Add signature if provided
       if (paymentData.signature) {
         formFields.signature = paymentData.signature;
       }
@@ -110,9 +111,22 @@ const EsewaPayment: React.FC = () => {
               <Loader2 className="text-[#A989C8] animate-spin" size={32} />
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Processing Payment</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            {environment === 'production' ? 'Processing Payment' : 'Redirecting to eSewa Sandbox'}
+          </h2>
           <p className="text-gray-600 mb-2">Redirecting to eSewa payment gateway...</p>
           <p className="text-sm text-gray-500">Please wait, do not close this window.</p>
+
+          {environment !== 'production' && (
+            <div className="mt-6 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} className="text-yellow-600 shrink-0" />
+                <p className="text-xs text-yellow-700 font-medium">
+                  Sandbox Environment — No real money will be charged
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <Footer />

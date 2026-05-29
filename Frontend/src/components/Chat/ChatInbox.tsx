@@ -1,117 +1,182 @@
-import { useEffect, useState, useContext } from "react";
+import { useEffect, useState, useContext, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { MessageCircle, Search } from "lucide-react";
+import { Search, MessageCircle } from "lucide-react";
 import socketService from "../../services/socketService";
 import chatService from "../../services/chatService";
 import { AuthContext } from "../../context/AuthContext";
+import { canChat, toConversationView } from "../../utils/chatUtils";
 import ConversationWindow from "./ConversationWindow";
+import type { ConversationData, ConversationView, MessagePayload } from "../../type";
 
-// Helper to get chat partner info
-function getChatPartner(conversation: any, currentUser: any) {
-  // If you have user data, replace this with a lookup by ID
-  const partnerId =
-    conversation.user1_id === currentUser.id
-      ? conversation.user2_id
-      : conversation.user1_id;
-  let partnerName =
-    conversation.user1_id === currentUser.id
-      ? conversation.user2_name
-      : conversation.user1_name;
-  if (!partnerName) partnerName = `User ${partnerId}`;
-  return { partnerId, partnerName };
+interface ChatInboxProps {
+  initialConversationId?: number;
 }
 
-export default function ChatInbox() {
+export default function ChatInbox({ initialConversationId }: ChatInboxProps) {
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext) || {};
+  const authCtx = useContext(AuthContext);
+  const user = authCtx?.user ?? null;
 
-  const [conversations, setConversations] = useState<any[]>([]);
-  const [selected, setSelected] = useState<any>(null);
+  const [conversations, setConversations] = useState<ConversationData[]>([]);
+  const [selected, setSelected] = useState<ConversationView | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [initialDone, setInitialDone] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
+
+  const loadChats = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await chatService.getConversations();
+      setConversations(data);
+    } catch {
+      setConversations([]);
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     if (!user?.id) {
       navigate("/login");
       return;
     }
-    socketService.connect();
-    loadChats();
-    const handleMessage = (msg: any) => {
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.room_id === msg.roomId
-            ? { ...c, last_message: msg.message, updated_at: msg.timestamp }
-            : c
-        )
-      );
-    };
-    socketService.onMessageReceived(handleMessage);
-    return () => {
-      socketService.removeListener("receive-message");
-    };
-  }, [user]);
 
-  const loadChats = async () => {
-    setLoading(true);
-    try {
-  // Use chatService for unified logic
-  const data = await chatService.getConversations();
-  setConversations(data.conversations || data || []);
-    } catch (err) {
-      console.error("Failed to load chats", err);
-    } finally {
-      setLoading(false);
+    const hasChatRole = canChat(user);
+    if (hasChatRole) {
+      socketService.connect();
+      socketService.joinUserRoom(user.id);
+      loadChats();
+
+      const handleMessage = (msg: MessagePayload) => {
+        if (msg.userId !== user?.id) {
+          loadChats();
+        }
+      };
+
+      const handleNotification = () => {
+        loadChats();
+      };
+
+      socketService.onMessageReceived(handleMessage);
+      socketService.onNewNotification(handleNotification);
+
+      const pollInterval = setInterval(() => loadChats(), 10000);
+
+      return () => {
+        socketService.removeListener("receive-message");
+        socketService.removeListener("new-notification");
+        clearInterval(pollInterval);
+      };
     }
-  };
+  }, [user, loadChats, navigate]);
+
+  useEffect(() => {
+    if (!initialDone && !loading && conversations.length > 0 && initialConversationId) {
+      const match = conversations.find((c) => c.id === initialConversationId);
+      if (match) {
+        setSelected(toConversationView(match, user!.id, user!.user_type));
+        setShowSidebar(false);
+        setInitialDone(true);
+      }
+    }
+  }, [conversations, loading, initialConversationId, initialDone]);
 
   const filtered = conversations.filter((c) => {
-    if (!user) return false;
-    const { partnerName } = getChatPartner(c, user);
-    return partnerName.toLowerCase().includes(search.toLowerCase());
+    const view = toConversationView(c, user!.id, user!.user_type);
+    return view.participantName.toLowerCase().includes(search.toLowerCase());
   });
+
+  const handleSelect = (c: ConversationData) => {
+    setSelected(toConversationView(c, user!.id, user!.user_type));
+    setShowSidebar(false);
+  };
+
+  const handleClose = () => {
+    setSelected(null);
+    setShowSidebar(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    await chatService.deleteConversation(Number(id));
+    setConversations((prev) => prev.filter((c) => String(c.id) !== id));
+    setSelected(null);
+    setShowSidebar(true);
+  };
+
+  const handleMessageSent = () => {
+    loadChats();
+  };
 
   if (!user) return null;
 
   return (
-    <div className="flex h-screen bg-white">
-      {/* LEFT */}
-      <div className="w-80 border-r flex flex-col">
-        <div className="p-4 border-b">
-          <h1 className="text-xl font-bold">Messages</h1>
-          <div className="flex items-center bg-gray-100 p-2 rounded-full mt-3">
-            <Search size={16} />
+    <div className="flex h-[calc(100vh-80px)] bg-white">
+      {/* Left sidebar — conversation list */}
+      <div
+        className={`${
+          showSidebar ? "flex" : "hidden"
+        } md:flex flex-col w-full md:w-96 border-r shrink-0`}
+      >
+        <div className="px-4 pt-6 pb-3 border-b">
+          <h1 className="text-2xl font-bold text-gray-800">Messages</h1>
+          <div className="flex items-center bg-gray-100 px-3 py-2 rounded-full mt-3">
+            <Search size={18} className="text-gray-400" />
             <input
-              className="ml-2 bg-transparent outline-none text-sm"
-              placeholder="Search"
+              className="ml-2 bg-transparent outline-none text-sm w-full"
+              placeholder="Search conversations..."
+              value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
         </div>
-        <div className="flex-1 overflow-auto">
+
+        <div className="flex-1 overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center text-gray-400">
+            <div className="flex items-center justify-center h-32 text-sm text-gray-400">
               Loading...
             </div>
           ) : conversations.length === 0 ? (
-            <div className="flex items-center justify-center text-gray-400">
-              No conversations
+            <div className="flex flex-col items-center justify-center h-32 text-sm text-gray-400 gap-2">
+              <MessageCircle className="w-8 h-8" />
+              No conversations yet
             </div>
           ) : (
             filtered.map((c) => {
-              const { partnerId, partnerName } = getChatPartner(c, user);
+              const view = toConversationView(c, user.id, user.user_type);
               return (
                 <div
                   key={c.id}
-                  onClick={() => setSelected(c)}
-                  className="p-3 border-b cursor-pointer hover:bg-gray-50"
+                  onClick={() => handleSelect(c)}
+                  className={`px-4 py-3 border-b cursor-pointer hover:bg-gray-50 transition ${
+                    selected?.id === String(c.id) ? "bg-purple-50" : ""
+                  }`}
                 >
-                  <div className="font-semibold">{partnerName}</div>
-                  <div className="text-sm text-gray-500 truncate">
-                    {c.last_message || "No messages yet"}
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {new Date(c.updated_at).toLocaleString()}
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-[#A989C8] flex items-center justify-center text-white font-bold shrink-0">
+                      {view.participantName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-sm truncate">
+                          {view.participantName}
+                        </span>
+                        <span className="text-[10px] text-gray-400 shrink-0 ml-2">
+                          {c.updated_at
+                            ? new Date(c.updated_at).toLocaleDateString()
+                            : ""}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center mt-0.5">
+                        <span className="text-sm text-gray-500 truncate">
+                          {view.lastMessage}
+                        </span>
+                        {view.unreadCount > 0 && (
+                          <span className="bg-[#A989C8] text-white text-[10px] rounded-full px-1.5 py-0.5 shrink-0 ml-2">
+                            {view.unreadCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -119,35 +184,28 @@ export default function ChatInbox() {
           )}
         </div>
       </div>
-      {/* RIGHT */}
-      <div className="flex-1 flex flex-col">
+
+      {/* Right panel — chat messages */}
+      <div
+        className={`${
+          !showSidebar || selected ? "flex" : "hidden"
+        } md:flex flex-col flex-1 ${
+          !selected ? "items-center justify-center text-gray-400" : ""
+        }`}
+      >
         {selected ? (
-          (() => {
-            const { partnerName } = getChatPartner(selected, user);
-            return (
-              <ConversationWindow
-                conversation={{
-                  id: selected.room_id,
-                  participantId: selected.user1_id === user.id ? selected.user2_id : selected.user1_id,
-                  participantName: partnerName,
-                  lastMessage: selected.last_message,
-                  unreadCount: 0,
-                  isOnline: false,
-                  userType: "user",
-                }}
-                currentUser={user}
-                onClose={() => setSelected(null)}
-                onDelete={() =>
-                  setConversations((prev) =>
-                    prev.filter((c) => c.room_id !== selected.room_id)
-                  )
-                }
-              />
-            );
-          })()
+          <ConversationWindow
+            conversation={selected}
+            currentUser={user}
+            onClose={handleClose}
+            onDelete={handleDelete}
+            onMessageSent={handleMessageSent}
+            inline
+          />
         ) : (
-          <div className="flex-1 flex items-center justify-center text-gray-400">
-            Select a conversation
+          <div className="hidden md:flex flex-col items-center gap-2">
+            <MessageCircle className="w-12 h-12" />
+            <p className="text-sm">Select a conversation to start chatting</p>
           </div>
         )}
       </div>

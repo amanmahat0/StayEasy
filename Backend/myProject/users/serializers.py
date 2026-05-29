@@ -1,7 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
-from .models import Profile, KYC, Property, PropertyImage, Booking, Favorite, ViewedProperty, LandlordUser, Chat, Message
+from .models import (
+    Profile, KYC, Property, PropertyImage, Booking, Favorite, ViewedProperty, 
+    LandlordUser, Chat, Message, CancellationPolicy, Payment, Refund, Cancellation, Notification
+)
 
 
 # =====================================================
@@ -372,6 +375,15 @@ class PropertySerializer(serializers.ModelSerializer):
     images = PropertyImageSerializer(many=True, read_only=True)
     main_image = serializers.SerializerMethodField()
     has_confirmed_booking = serializers.SerializerMethodField()
+    booking_id = serializers.SerializerMethodField()
+    booking_status = serializers.SerializerMethodField()
+    booking_check_in = serializers.SerializerMethodField()
+    booking_check_out = serializers.SerializerMethodField()
+    booking_total_price = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
+    owner_id = serializers.IntegerField(source="owner.id", read_only=True)
+    landlord_name = serializers.SerializerMethodField()
+    landlord_id = serializers.IntegerField(source="landlord.id", read_only=True, allow_null=True)
 
     class Meta:
         model = Property
@@ -386,12 +398,106 @@ class PropertySerializer(serializers.ModelSerializer):
         return None
 
     def get_has_confirmed_booking(self, obj):
-        """Check if property has any confirmed bookings"""
+        """Check if property has a confirmed booking (payment fully verified)"""
         from .models import Booking
         return Booking.objects.filter(
             property=obj,
             status='confirmed'
         ).exists()
+
+    def get_booking_id(self, obj):
+        """Return the booking ID for the current authenticated user (if any)"""
+        from .models import Booking
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            booking = Booking.objects.filter(
+                property=obj,
+                user=request.user,
+                status__in=['pending', 'processing', 'confirmed']
+            ).first()
+            if booking:
+                return booking.id
+        return None
+
+    def get_booking_status(self, obj):
+        """Return the booking status for the current authenticated user (if any)"""
+        from .models import Booking
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            booking = Booking.objects.filter(
+                property=obj,
+                user=request.user,
+                status__in=['pending', 'processing', 'confirmed']
+            ).first()
+            if booking:
+                return booking.status
+        return None
+
+    @property
+    def _get_current_booking(self):
+        """Helper to get current user's booking"""
+        from .models import Booking
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            booking = Booking.objects.filter(
+                property=self.instance,
+                user=request.user,
+                status__in=['pending', 'processing', 'confirmed']
+            ).first()
+            return booking
+        return None
+
+    def get_booking_check_in(self, obj):
+        """Return booking check-in date for current user"""
+        from .models import Booking
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            booking = Booking.objects.filter(
+                property=obj,
+                user=request.user,
+                status__in=['pending', 'processing', 'confirmed']
+            ).first()
+            if booking:
+                return booking.check_in
+        return None
+
+    def get_booking_check_out(self, obj):
+        """Return booking check-out date for current user"""
+        from .models import Booking
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            booking = Booking.objects.filter(
+                property=obj,
+                user=request.user,
+                status__in=['pending', 'processing', 'confirmed']
+            ).first()
+            if booking:
+                return booking.check_out
+        return None
+
+    def get_booking_total_price(self, obj):
+        """Return booking total price for current user"""
+        from .models import Booking
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            booking = Booking.objects.filter(
+                property=obj,
+                user=request.user,
+                status__in=['pending', 'processing', 'confirmed']
+            ).first()
+            if booking:
+                return booking.total_price
+        return None
+
+    def get_owner_name(self, obj):
+        if obj.owner:
+            return obj.owner.first_name or obj.owner.username
+        return None
+
+    def get_landlord_name(self, obj):
+        if obj.landlord:
+            return obj.landlord.name
+        return None
 
 
 # =====================================================
@@ -424,6 +530,8 @@ class BookingDetailSerializer(serializers.ModelSerializer):
             "payment_method",
             "payment_status",
             "payment_type",
+            "esewa_ref_id",
+            "esewa_transaction_id",
             "created_at",
             "updated_at"
         ]
@@ -461,7 +569,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Booking
-        fields = ["property", "check_in", "check_out", "total_price", "payment_type"]
+        fields = ["id", "property", "check_in", "check_out", "total_price", "payment_type"]
 
     def validate(self, attrs):
         """Validate booking dates"""
@@ -530,3 +638,118 @@ class ViewedPropertySerializer(serializers.ModelSerializer):
             "available": obj.property.available,
             "images": PropertyImageSerializer(obj.property.images.all(), many=True).data,
         }
+
+
+# =====================================================
+# CANCELLATION & REFUND SERIALIZERS
+# =====================================================
+class CancellationPolicySerializer(serializers.ModelSerializer):
+    """Serializer for cancellation policy"""
+    
+    class Meta:
+        model = CancellationPolicy
+        fields = [
+            'id',
+            'full_refund_days',
+            'partial_refund_days',
+            'partial_refund_percentage',
+            'platform_fee_percentage',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class RefundSerializer(serializers.ModelSerializer):
+    """Serializer for refund information"""
+    
+    class Meta:
+        model = Refund
+        fields = [
+            'id',
+            'booking',
+            'payment',
+            'refund_amount',
+            'refund_percentage',
+            'status',
+            'reason',
+            'policy_applied',
+            'requested_at',
+            'processed_at'
+        ]
+        read_only_fields = ['id', 'requested_at', 'processed_at']
+
+
+class CancellationSerializer(serializers.ModelSerializer):
+    """Serializer for cancellation record"""
+    refund = RefundSerializer(read_only=True)
+    
+    class Meta:
+        model = Cancellation
+        fields = [
+            'id',
+            'booking',
+            'cancelled_by',
+            'reason',
+            'cancelled_at',
+            'refund'
+        ]
+        read_only_fields = ['id', 'cancelled_at']
+
+
+class BookingCancellationResponseSerializer(serializers.Serializer):
+    """Serializer for booking cancellation response"""
+    
+    booking_id = serializers.IntegerField()
+    status = serializers.CharField()
+    refund_amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    refund_percentage = serializers.IntegerField()
+    policy_applied = serializers.CharField()
+    message = serializers.CharField()
+
+
+class CancellationPolicyInfoSerializer(serializers.Serializer):
+    """Serializer to display cancellation policy info to tenant before booking"""
+    
+    full_refund_days = serializers.IntegerField()
+    partial_refund_days = serializers.IntegerField()
+    partial_refund_percentage = serializers.IntegerField()
+    
+    # Calculated fields
+    full_refund_description = serializers.SerializerMethodField()
+    partial_refund_description = serializers.SerializerMethodField()
+    no_refund_description = serializers.SerializerMethodField()
+    
+    def get_full_refund_description(self, obj):
+        return f"Full refund if you cancel {obj['full_refund_days']} or more days before check-in"
+    
+    def get_partial_refund_description(self, obj):
+        return (
+            f"{obj['partial_refund_percentage']}% refund if you cancel "
+            f"{obj['partial_refund_days']}-{obj['full_refund_days']-1} days before check-in"
+        )
+    
+    def get_no_refund_description(self, obj):
+        return f"No refund if you cancel less than {obj['partial_refund_days']} days before check-in"
+
+
+# =====================================================
+# NOTIFICATION SERIALIZERS
+# =====================================================
+class NotificationSerializer(serializers.ModelSerializer):
+    """Serializer for notifications"""
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'id',
+            'recipient',
+            'notification_type',
+            'title',
+            'message',
+            'related_entity_type',
+            'related_entity_id',
+            'is_read',
+            'created_at'
+        ]
+        read_only_fields = ['id', 'recipient', 'created_at']

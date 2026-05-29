@@ -1,127 +1,30 @@
-﻿
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-  ChevronLeft,
   Send,
   MoreVertical,
-  Phone,
-  Video,
   Trash2,
   X,
   Smile,
+  Maximize2,
+  Minimize2,
+  ChevronLeft,
 } from "lucide-react";
 import socketService from "../../services/socketService";
 import chatService from "../../services/chatService";
-
-function ImageUploader({
-  roomId,
-  userId,
-  userName,
-  userType,
-  onUploadStart,
-  onUploadComplete,
-}: {
-  roomId: string;
-  userId: number;
-  userName: string;
-  userType: string;
-  onUploadStart?: () => void;
-  onUploadComplete?: (file?: File, caption?: string) => void;
-}) {
-  const fileRef = useRef<HTMLInputElement | null>(null);
-
-  const handleFileChange = (e: any) => {
-    const file = e.target.files?.[0];
-    if (!file) {
-      onUploadComplete && onUploadComplete();
-      return;
-    }
-    onUploadStart && onUploadStart();
-
-    // Simulate a quick upload; replace with real upload logic if needed.
-    setTimeout(() => {
-      onUploadComplete && onUploadComplete(file);
-    }, 500);
-  };
-
-  return (
-    <div>
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-      <button
-        type="button"
-        onClick={() => fileRef.current?.click()}
-        className="p-2 text-gray-500 hover:text-blue-500"
-      >
-        📷
-      </button>
-    </div>
-  );
-}
-
-function EmojiPicker({
-  onEmojiSelect,
-  onClose,
-}: {
-  onEmojiSelect: (emoji: string) => void;
-  onClose: () => void;
-}) {
-  const emojis = ["😀", "😂", "😍", "😢", "👍", "🙏", "🎉", "❤️"];
-  return (
-    <div className="p-2 bg-white border rounded shadow">
-      <div className="grid grid-cols-6 gap-2">
-        {emojis.map((e) => (
-          <button
-            key={e}
-            type="button"
-            onClick={() => {
-              onEmojiSelect(e);
-            }}
-            className="text-2xl"
-          >
-            {e}
-          </button>
-        ))}
-      </div>
-      <div className="mt-2 text-right">
-        <button onClick={onClose} className="text-sm text-gray-500">
-          Close
-        </button>
-      </div>
-    </div>
-  );
-}
-
-interface Conversation {
-  id: string;
-  participantId: number;
-  participantName: string;
-  lastMessage: string;
-  unreadCount: number;
-  isOnline: boolean;
-  userType: "user" | "landlord";
-}
-
-interface Message {
-  id: string;
-  senderId?: number;
-  content?: string;
-  imageUrl?: string;
-  caption?: string;
-  timestamp: string;
-  type?: "text" | "image";
-}
+import { canChat, getJwtPayload } from "../../utils/chatUtils";
+import ImageUploader from "./ImageUploader";
+import EmojiPicker from "./EmojiPicker";
+import type { ConversationView, MessageData, MessagePayload, User } from "../../type";
 
 interface Props {
-  conversation: Conversation;
-  currentUser: any;
+  conversation: ConversationView;
+  currentUser: User;
   onClose: () => void;
   onDelete: (id: string) => void;
+  onMessageSent?: () => void;
+  inline?: boolean;
+  onMinimize?: () => void;
 }
 
 export default function ConversationWindow({
@@ -129,264 +32,340 @@ export default function ConversationWindow({
   currentUser,
   onClose,
   onDelete,
+  onMessageSent,
+  inline = false,
+  onMinimize,
 }: Props) {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const navigate = useNavigate();
+  const [messages, setMessages] = useState<MessageData[]>([]);
   const [input, setInput] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [uploading, setUploading] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const roomId = conversation.roomId || chatService.generateRoomId(currentUser.id, conversation.participantId);
+  const jwtLandlordId = getJwtPayload()?.landlord_id as number | undefined;
+  const myLandlordId = conversation.myLandlordId || jwtLandlordId;
+  const effectiveUserType = myLandlordId ? "landlord" : "user";
+  const displayName = conversation.currentUserName || currentUser.first_name || currentUser.username;
 
-  const roomId = chatService.generateRoomId(
-    currentUser.id,
-    conversation.participantId
-  );
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+  }, []);
 
-  // SOCKET + HISTORY
   useEffect(() => {
     if (!conversation) return;
+    if (!canChat(currentUser)) return;
 
     socketService.connect();
-
-    // join room
     socketService.joinRoom({
-      propertyId: 0,
-      userId: currentUser.id,
-      landlordId: conversation.participantId,
-      userName: currentUser.name,
-      userType: currentUser.user_type,
-    });
-
-    // ✅ FIXED: only valid fields here
-    socketService.requestHistory({
       roomId,
-      limit: 50,
+      userId: currentUser.id,
+      userName: displayName,
+      userType: effectiveUserType,
+      receiverUserId: conversation.participantUserId,
     });
 
-    const handleMessage = (msg: any) => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: msg.id || Date.now().toString(),
-          senderId: msg.userId,
-          content: msg.message || msg.content,
-          timestamp: msg.timestamp || new Date().toISOString(),
-          type: "text",
-        },
-      ]);
+    const convId = Number(conversation.id);
+    if (convId) {
+      chatService.getConversationMessages(convId).then((msgs) => {
+        setMessages(msgs);
+        scrollToBottom();
+      });
+    }
+
+    const handleMessage = (msg: MessagePayload) => {
+      setMessages((prev) => {
+        if (prev.some((m) => String(m.id) === String(msg.id))) return prev;
+        return [
+          ...prev,
+          {
+            id: Number(msg.id) || Date.now(),
+            content: msg.message || msg.content,
+            sender_name: msg.userName || msg.sender_name || "",
+            sender_type: (msg.userType || msg.sender_type || "user") as "user" | "landlord",
+            sender_user: msg.userType === "user" ? (msg.userId ?? null) : null,
+            sender_landlord: null,
+            image_url: msg.imageUrl || "",
+            caption: msg.caption || "",
+            is_read: true,
+            created_at: msg.timestamp || msg.created_at || new Date().toISOString(),
+          },
+        ];
+      });
+      scrollToBottom();
     };
 
     socketService.onMessageReceived(handleMessage);
+    socketService.onHistoryReceived((data) => {
+      if (data.messages?.length) {
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => String(m.id)));
+          const newMsgs: MessageData[] = data.messages
+            .filter((m: MessagePayload) => !existingIds.has(String(m.id)))
+            .map((m: MessagePayload) => ({
+              id: Number(m.id) || Date.now(),
+              content: m.message || m.content,
+              sender_name: m.userName || m.sender_name || "",
+              sender_type: (m.userType || m.sender_type || "user") as "user" | "landlord",
+              sender_user: m.userType === "user" ? (m.userId ?? null) : null,
+              sender_landlord: null,
+              image_url: m.imageUrl || "",
+              caption: m.caption || "",
+              is_read: true,
+              created_at: m.timestamp || m.created_at || new Date().toISOString(),
+            }));
+          return [...newMsgs, ...prev];
+        });
+        scrollToBottom();
+      }
+    });
 
     return () => {
-      socketService.leaveRoom({
-        roomId,
-        userId: currentUser.id,
-        userName: currentUser.name,
-      });
-
       socketService.removeListener("receive-message");
+      socketService.removeListener("chat-history");
+      socketService.leaveRoom({ roomId, userId: currentUser.id, userName: displayName });
     };
-  }, [conversation]);
+  }, [conversation.id]);
 
-  // auto scroll
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    scrollToBottom();
   }, [messages]);
 
-  // send message
   const handleSend = async () => {
-    if (!input.trim()) return;
-
-    const newMsg: Message = {
-      id: Date.now().toString(),
-      senderId: currentUser.id,
-      content: input,
-      timestamp: new Date().toISOString(),
-      type: "text",
-    };
-
-    setMessages((prev) => [...prev, newMsg]);
+    if (!input.trim() || uploading) return;
+    const text = input.trim();
+    setInput("");
+    setShowEmoji(false);
 
     socketService.sendMessage({
       roomId,
-      message: input,
+      message: text,
       userId: currentUser.id,
-      userName: currentUser.name,
-      userType: currentUser.user_type,
+      userName: displayName,
+      userType: effectiveUserType,
+      receiverUserId: conversation.participantUserId,
     });
 
-    // Persist message to backend
-    if (conversation?.id) {
-      try {
-        await chatService.saveMessage(conversation.id, input);
-      } catch (e) {
-        // handle error
-      }
+    const convId = Number(conversation.id);
+    if (convId) {
+      await chatService.saveMessage(convId, text);
     }
-
-    setInput("");
-    setShowEmoji(false);
+    onMessageSent?.();
   };
 
-  // Handle image upload
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   const handleImageSend = async (file: File, caption?: string) => {
     setUploading(true);
     try {
       const res = await socketService.uploadImage(file);
-      if (res && res.imageUrl) {
-        const msg: Message = {
-          id: Date.now().toString(),
-          senderId: currentUser.id,
-          imageUrl: res.imageUrl,
-          caption,
-          timestamp: new Date().toISOString(),
-          type: "image",
-        };
-        setMessages((prev) => [...prev, msg]);
+      if (res?.imageUrl) {
         socketService.sendImage({
           roomId,
           imageUrl: res.imageUrl,
-          caption,
           userId: currentUser.id,
-          userName: currentUser.name,
-          userType: currentUser.user_type,
+          userName: displayName,
+          userType: effectiveUserType,
+          caption,
+          receiverUserId: conversation.participantUserId,
         });
-        // Persist image message to backend (optional: extend backend to support image/caption)
-        if (conversation?.id) {
-          try {
-            await chatService.saveMessage(conversation.id, caption ? `${caption} [image: ${res.imageUrl}]` : `[image: ${res.imageUrl}]`);
-          } catch (e) {
-            // handle error
-          }
+        const convId = Number(conversation.id);
+        if (convId) {
+          await chatService.saveMessage(convId, "", res.imageUrl, caption);
         }
+        onMessageSent?.();
       }
-    } catch (e) {
-      // handle error
+    } catch {
+      // upload failed silently
     }
     setUploading(false);
   };
 
-  return (
-    <div className="hidden md:flex flex-1 flex-col bg-white">
+  const otherSender = (msg: MessageData): boolean => {
+    // Check FK fields first — these are definitive
+    if (msg.sender_landlord) return msg.sender_landlord !== myLandlordId;
+    if (msg.sender_user !== undefined && msg.sender_user !== null) return msg.sender_user !== currentUser.id;
+    // Fallback for socket messages where FK is null — use sender_type
+    if (msg.sender_type === "landlord") return !myLandlordId;
+    if (msg.sender_type === "user") return true;
+    return true;
+  };
 
-      {/* HEADER */}
-      <div className="p-4 border-b bg-[#A989C8] text-white flex justify-between">
-        <div>
-          <h2 className="font-bold">{conversation.participantName}</h2>
-          <p className="text-xs opacity-80">
-            {conversation.isOnline ? "Online" : "Offline"}
-          </p>
-        </div>
+  const isOwn = (msg: MessageData): boolean => !otherSender(msg);
 
-        <div className="flex gap-2 relative">
-          <Phone className="w-5 h-5 cursor-pointer" />
-          <Video className="w-5 h-5 cursor-pointer" />
-
-          <button onClick={() => setShowMenu(!showMenu)}>
-            <MoreVertical className="w-5 h-5" />
-          </button>
-
-          {showMenu && (
-            <div className="absolute right-0 top-8 bg-white text-black rounded shadow">
-              <button
-                onClick={() => onDelete(conversation.id)}
-                className="flex items-center gap-2 px-3 py-2 text-red-500"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
-            </div>
-          )}
-
-          <button onClick={onClose}>
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* MESSAGES */}
-      <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-        {messages.map((msg) => {
-          const isOwn = msg.senderId === currentUser.id;
-          return (
+  const messageList = (
+    <div className="flex-1 overflow-y-auto px-3 py-3 bg-gray-50 space-y-2">
+      {messages.map((msg) => {
+        const mine = isOwn(msg);
+        return (
+          <div key={msg.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
+            {!mine && msg.sender_name && (
+              <span className="text-[11px] text-gray-500 px-1 mb-0.5">{msg.sender_name}</span>
+            )}
             <div
-              key={msg.id}
-              className={`flex mb-2 ${isOwn ? "justify-end" : "justify-start"}`}
+              className={`px-3 py-2 rounded-lg max-w-xs sm:max-w-sm break-words ${
+                mine
+                  ? "bg-[#A989C8] text-white rounded-br-sm"
+                  : "bg-white border text-gray-800 rounded-bl-sm"
+              }`}
             >
-              <div
-                className={`px-3 py-2 rounded-lg max-w-xs ${
-                  isOwn
-                    ? "bg-[#A989C8] text-white"
-                    : "bg-white border text-black"
-                }`}
-              >
-                {msg.type === "image" && msg.imageUrl ? (
-                  <>
-                    <img
-                      src={msg.imageUrl}
-                      alt="chat-img"
-                      className="max-h-48 rounded mb-1 cursor-pointer"
-                    />
-                    {msg.caption && <div className="text-xs text-gray-700 mt-1">{msg.caption}</div>}
-                  </>
-                ) : (
-                  msg.content
-                )}
-              </div>
+              {msg.image_url ? (
+                <>
+                  <img src={msg.image_url} alt="chat-img" className="max-h-48 rounded mb-1 cursor-pointer" />
+                  {msg.caption && <p className="text-xs mt-1 opacity-90">{msg.caption}</p>}
+                </>
+              ) : (
+                <p className="text-sm">{msg.content}</p>
+              )}
+              <p className={`text-[10px] mt-1 ${mine ? "text-white/70" : "text-gray-400"}`}>
+                {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </p>
             </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </div>
+          </div>
+        );
+      })}
+      <div ref={messagesEndRef} />
+    </div>
+  );
 
-      {/* INPUT */}
-      <div className="p-3 border-t flex gap-2 items-center">
-        <ImageUploader
-          roomId={roomId}
-          userId={currentUser.id}
-          userName={currentUser.name}
-          userType={currentUser.user_type}
-          onUploadStart={() => setUploading(true)}
-          onUploadComplete={(file, caption) => {
-            setUploading(false);
-            if (file) handleImageSend(file, caption);
-          }}
-        />
-        <div className="relative">
-          <button
-            type="button"
-            className="p-2 text-gray-500 hover:text-blue-500"
-            onClick={() => setShowEmoji((v) => !v)}
-            disabled={uploading}
-          >
-            <Smile className="w-5 h-5" />
-          </button>
-          {showEmoji && (
-            <div className="absolute bottom-12 left-0 z-10">
-              <EmojiPicker
-                onEmojiSelect={(emoji) => setInput((prev) => prev + emoji)}
-                onClose={() => setShowEmoji(false)}
-              />
-            </div>
-          )}
-        </div>
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Type message..."
-          className="flex-1 border rounded-full px-4 py-2"
-          disabled={uploading}
-        />
+  const inputBar = (
+    <div className="px-3 py-2 border-t bg-white flex items-center gap-2 shrink-0">
+      <ImageUploader
+        roomId={roomId}
+        userId={currentUser.id}
+        userName={displayName}
+        userType={effectiveUserType}
+        onUploadStart={() => setUploading(true)}
+        onUploadComplete={(file) => { setUploading(false); if (file) handleImageSend(file); }}
+      />
+      <div className="relative">
         <button
-          onClick={handleSend}
-          className="bg-[#A989C8] text-white px-4 rounded-full"
-          disabled={!input.trim() || uploading}
+          type="button"
+          className="p-1.5 text-gray-500 hover:text-[#A989C8]"
+          onClick={() => setShowEmoji((v) => !v)}
+          disabled={uploading}
         >
-          <Send className="w-4 h-4" />
+          <Smile className="w-5 h-5" />
         </button>
+        {showEmoji && (
+          <div className="absolute bottom-10 left-0 z-20">
+            <EmojiPicker
+              onEmojiSelect={(emoji) => setInput((prev) => prev + emoji)}
+              onClose={() => setShowEmoji(false)}
+            />
+          </div>
+        )}
+      </div>
+      <input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Type a message..."
+        className="flex-1 border rounded-full px-4 py-2 text-sm outline-none focus:border-[#A989C8]"
+        disabled={uploading}
+      />
+      <button
+        onClick={handleSend}
+        disabled={!input.trim() || uploading}
+        className="bg-[#A989C8] text-white p-2 rounded-full disabled:opacity-50 hover:bg-[#9678b5]"
+      >
+        <Send className="w-4 h-4" />
+      </button>
+    </div>
+  );
+
+  const menuDropdown = (
+    <div className="relative">
+      <button onClick={() => setShowMenu(!showMenu)} className="p-1.5 hover:bg-white/20 rounded">
+        <MoreVertical className="w-4 h-4" />
+      </button>
+      {showMenu && (
+        <div className="absolute right-0 top-8 bg-white text-black rounded shadow z-10">
+          <button
+            onClick={() => onDelete(conversation.id)}
+            className="flex items-center gap-2 px-3 py-2 text-red-500 text-sm whitespace-nowrap"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
+  if (inline) {
+    return (
+      <div className="flex flex-col h-full">
+        <div className="px-4 py-3 bg-[#A989C8] text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={onClose} className="md:hidden p-1.5 hover:bg-white/20 rounded">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm shrink-0">
+              {conversation.participantName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-semibold text-sm truncate">{conversation.participantName}</h2>
+              <p className="text-xs opacity-80">{conversation.isOnline ? "Online" : "Offline"}</p>
+            </div>
+          </div>
+          {menuDropdown}
+        </div>
+        {messageList}
+        {inputBar}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 md:bg-black/10"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="w-full h-full md:w-[480px] md:h-[600px] md:rounded-xl md:shadow-2xl bg-white flex flex-col overflow-hidden">
+        <div className="px-4 py-3 bg-[#A989C8] text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={onClose} className="md:hidden">
+              <X className="w-5 h-5" />
+            </button>
+            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm shrink-0">
+              {conversation.participantName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-semibold text-sm truncate">{conversation.participantName}</h2>
+              <p className="text-xs opacity-80">{conversation.isOnline ? "Online" : "Offline"}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => onMinimize?.()}
+              className="p-1.5 hover:bg-white/20 rounded"
+              title="Minimize"
+            >
+              <Minimize2 className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => navigate("/chat", { state: { conversationId: Number(conversation.id) } })}
+              className="p-1.5 hover:bg-white/20 rounded"
+              title="Maximize"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+            {menuDropdown}
+            <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+        {messageList}
+        {inputBar}
       </div>
     </div>
   );

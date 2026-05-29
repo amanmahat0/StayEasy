@@ -321,3 +321,213 @@ class Message(models.Model):
     def __str__(self):
         sender = self.sender_user.username if self.sender_user else self.sender_landlord.email
         return f"Message in {self.chat.id}: {sender}"
+
+
+# ============================================================
+# CANCELLATION POLICY MODEL
+# Defines refund policy rules based on cancellation timing
+# ============================================================
+class CancellationPolicy(models.Model):
+    """
+    Defines the cancellation and refund policy rules.
+    A single policy rule applies to all bookings.
+    """
+    
+    # Days before check-in for 100% refund
+    full_refund_days = models.IntegerField(default=7, help_text="Days before check-in for 100% refund")
+    
+    # Days before check-in for 50% refund
+    partial_refund_days = models.IntegerField(default=3, help_text="Days before check-in for 50% refund")
+    
+    # Percentage refunded for late cancellations (less than partial_refund_days)
+    partial_refund_percentage = models.IntegerField(default=50, help_text="Percentage refunded for late cancellations")
+    
+    # Additional fee percentage that platform keeps
+    platform_fee_percentage = models.IntegerField(default=0, help_text="Percentage fee platform keeps from cancelled bookings")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name_plural = "Cancellation Policies"
+    
+    def __str__(self):
+        return f"Cancellation Policy (Updated: {self.updated_at.date()})"
+    
+    @staticmethod
+    def get_default_policy():
+        """Get or create the default cancellation policy"""
+        policy, created = CancellationPolicy.objects.get_or_create(
+            id=1,
+            defaults={
+                'full_refund_days': 7,
+                'partial_refund_days': 3,
+                'partial_refund_percentage': 50,
+                'platform_fee_percentage': 0,
+            }
+        )
+        return policy
+    
+    def calculate_refund_amount(self, booking):
+        """
+        Calculate refund amount based on cancellation policy and booking dates.
+        
+        Args:
+            booking: Booking object
+        
+        Returns:
+            dict with refund_amount, refund_percentage, policy_applied
+        """
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        booking_amount = float(booking.total_price)
+        today = timezone.now().date()
+        days_until_checkin = (booking.check_in - today).days
+        
+        if days_until_checkin >= self.full_refund_days:
+            # Full refund
+            return {
+                'refund_amount': booking_amount,
+                'refund_percentage': 100,
+                'policy_applied': f'Full refund ({self.full_refund_days}+ days before check-in)'
+            }
+        elif days_until_checkin >= self.partial_refund_days:
+            # Partial refund
+            refund_amount = booking_amount * (self.partial_refund_percentage / 100)
+            return {
+                'refund_amount': round(refund_amount, 2),
+                'refund_percentage': self.partial_refund_percentage,
+                'policy_applied': f'{self.partial_refund_percentage}% refund ({self.partial_refund_days}-{self.full_refund_days - 1} days before check-in)'
+            }
+        else:
+            # No refund
+            return {
+                'refund_amount': 0,
+                'refund_percentage': 0,
+                'policy_applied': f'No refund (Less than {self.partial_refund_days} days before check-in)'
+            }
+
+
+# ============================================================
+# PAYMENT MODEL
+# Records payment transactions for bookings
+# ============================================================
+class Payment(models.Model):
+    """Records payment transactions"""
+    
+    PAYMENT_STATUS = (
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('refunded', 'Refunded'),
+    )
+    
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name="payments")
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE, related_name="payments")
+    
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='pending')
+    
+    payment_method = models.CharField(max_length=50, default='esewa')
+    transaction_id = models.CharField(max_length=255, blank=True, null=True)
+    
+    payment_date = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-payment_date']
+    
+    def __str__(self):
+        return f"Payment {self.id} - Booking {self.booking.id} ({self.status})"
+
+
+# ============================================================
+# REFUND MODEL
+# Records refund transactions
+# ============================================================
+class Refund(models.Model):
+    """Records refund transactions when bookings are cancelled"""
+    
+    REFUND_STATUS = (
+        ('pending', 'Pending'),
+        ('processed', 'Processed'),
+        ('failed', 'Failed'),
+    )
+    
+    payment = models.OneToOneField(Payment, on_delete=models.CASCADE, related_name="refund")
+    booking = models.OneToOneField(Booking, on_delete=models.CASCADE, related_name="refund")
+    
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    refund_percentage = models.IntegerField(default=0, help_text="Percentage of original amount refunded")
+    status = models.CharField(max_length=20, choices=REFUND_STATUS, default='pending')
+    
+    reason = models.CharField(max_length=255, blank=True, null=True)
+    policy_applied = models.CharField(max_length=255, blank=True, null=True)
+    
+    requested_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(blank=True, null=True)
+    
+    class Meta:
+        ordering = ['-requested_at']
+    
+    def __str__(self):
+        return f"Refund {self.id} - Booking {self.booking.id} ({self.status})"
+
+
+# ============================================================
+# CANCELLATION MODEL
+# Records booking cancellation details
+# ============================================================
+class Cancellation(models.Model):
+    """Records when a booking is cancelled"""
+    
+    booking = models.OneToOneField(Booking, on_delete=models.CASCADE, related_name="cancellation")
+    cancelled_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="cancellations")
+    
+    reason = models.CharField(max_length=500, blank=True, null=True)
+    
+    cancelled_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-cancelled_at']
+    
+    def __str__(self):
+        return f"Cancellation of Booking {self.booking.id}"
+
+
+# ============================================================
+# NOTIFICATION MODEL
+# Sends notifications to users and landlords
+# ============================================================
+class Notification(models.Model):
+    """Stores notifications for users and landlords"""
+    
+    NOTIFICATION_TYPES = (
+        ('booking_confirmed', 'Booking Confirmed'),
+        ('booking_cancelled', 'Booking Cancelled'),
+        ('booking_completed', 'Booking Completed'),
+        ('refund_processed', 'Refund Processed'),
+        ('kyc_approved', 'KYC Approved'),
+        ('kyc_rejected', 'KYC Rejected'),
+        ('payment_received', 'Payment Received'),
+        ('payment_failed', 'Payment Failed'),
+    )
+    
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
+    
+    notification_type = models.CharField(max_length=50, choices=NOTIFICATION_TYPES)
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    
+    related_entity_type = models.CharField(max_length=50, blank=True, null=True, help_text="e.g., 'booking', 'refund'")
+    related_entity_id = models.IntegerField(blank=True, null=True)
+    
+    is_read = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Notification {self.id} - {self.title} (to {self.recipient.username})"

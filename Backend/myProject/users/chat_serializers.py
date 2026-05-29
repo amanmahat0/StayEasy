@@ -1,30 +1,18 @@
 from rest_framework import serializers
-from .models import Chat, Message, Property
+from django.contrib.auth.models import User
+from .models import Chat, Message, Property, LandlordUser
 
 
-# =====================================================
-# PROPERTY (NESTED INSIDE CHAT)
-# =====================================================
 class PropertyMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model = Property
         fields = [
-            "id",
-            "title",
-            "description",
-            "city",
-            "address",
-            "bedrooms",
-            "bathrooms",
-            "sq_ft",
-            "parking",
-            "price",
+            "id", "title", "description", "city", "address",
+            "property_type", "price", "available", "status",
+            "owner",
         ]
 
 
-# =====================================================
-# MESSAGE SERIALIZER
-# =====================================================
 class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.SerializerMethodField()
     sender_type = serializers.SerializerMethodField()
@@ -32,14 +20,10 @@ class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = [
-            "id",
-            "content",
-            "sender_user",
-            "sender_landlord",
-            "sender_name",
-            "sender_type",
-            "is_read",
-            "created_at",
+            "id", "content", "image_url", "caption",
+            "sender_user", "sender_landlord",
+            "sender_name", "sender_type",
+            "is_read", "created_at",
         ]
         read_only_fields = ["id", "created_at"]
 
@@ -58,20 +42,19 @@ class MessageSerializer(serializers.ModelSerializer):
         return "unknown"
 
 
-# =====================================================
-# CHAT SERIALIZER (FIXED)
-# =====================================================
 class ChatSerializer(serializers.ModelSerializer):
     messages = MessageSerializer(many=True, read_only=True)
 
     user_name = serializers.CharField(source="user.first_name", read_only=True)
     landlord_name = serializers.CharField(source="landlord.name", read_only=True)
 
-    # ✅ FIX: full property object instead of just title
+    landlord_user_id = serializers.SerializerMethodField()
+
     property = PropertyMiniSerializer(read_only=True)
 
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
+    room_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Chat
@@ -81,12 +64,14 @@ class ChatSerializer(serializers.ModelSerializer):
             "user_name",
             "landlord",
             "landlord_name",
+            "landlord_user_id",
             "property",
             "subject",
             "is_active",
             "messages",
             "last_message",
             "unread_count",
+            "room_id",
             "created_at",
             "updated_at",
         ]
@@ -101,20 +86,40 @@ class ChatSerializer(serializers.ModelSerializer):
     def get_unread_count(self, obj):
         return obj.messages.filter(is_read=False).count()
 
+    def get_room_id(self, obj):
+        a = obj.user_id
+        b = obj.landlord_id
+        if a and b:
+            return f"conv_{min(a,b)}_{max(a,b)}"
+        return None
 
-# =====================================================
-# CHAT CREATE SERIALIZER
-# =====================================================
+    def get_landlord_user_id(self, obj):
+        if not obj.landlord_id:
+            return None
+        # 1. Try email match between LandlordUser and User
+        landlord = obj.landlord
+        if landlord and landlord.email:
+            try:
+                return User.objects.get(email__iexact=landlord.email).id
+            except User.DoesNotExist:
+                pass
+        # 2. Fallback: the Chat's property owner is the landlord's regular User
+        try:
+            prop = obj.property
+            if prop and prop.owner_id:
+                return prop.owner_id
+        except Exception:
+            pass
+        return None
+
+
 class ChatCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Chat
         fields = ["landlord", "property", "subject"]
 
 
-# =====================================================
-# MESSAGE CREATE SERIALIZER
-# =====================================================
 class MessageCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
-        fields = ["content"]
+        fields = ["content", "image_url", "caption"]

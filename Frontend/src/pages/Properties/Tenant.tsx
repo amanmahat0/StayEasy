@@ -83,7 +83,7 @@ const Tenant: React.FC = () => {
           email: booking.user_info?.email || '',
           phone: booking.user_info?.username || '+977-9800000000',
           property: booking.property_info?.title || 'Unknown Property',
-          status: booking.status === 'confirmed' ? 'Active' : 'Pending',
+          status: booking.status === 'confirmed' ? 'Booked' : booking.status === 'pending' ? 'Pending' : booking.status === 'processing' ? 'Processing' : 'Cancelled',
           kycVerified: true, 
           monthlyRent: `NPR ${booking.property_info?.price?.toLocaleString() || '0'}`,
           depositPaid: `NPR ${((booking.property_info?.price || 0) * 2).toLocaleString()}`,
