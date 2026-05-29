@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
 
 interface Props {
   formData: any;
@@ -15,14 +15,17 @@ const Step5Images: React.FC<Props> = ({ formData, setFormData }) => {
 
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
-
     const filesArray = Array.from(e.target.files);
-
-    // Save files in formData.images (or create array if doesn't exist)
     setFormData({
       ...formData,
       images: [...(formData.images || []), ...filesArray],
     });
+    e.target.value = '';
+  };
+
+  const handleRemove = (index: number) => {
+    const updated = formData.images.filter((_: File, i: number) => i !== index);
+    setFormData({ ...formData, images: updated });
   };
 
   return (
@@ -42,6 +45,7 @@ const Step5Images: React.FC<Props> = ({ formData, setFormData }) => {
         <input
           type="file"
           multiple
+          accept="image/*"
           ref={inputRef}
           className="hidden"
           onChange={handleFiles}
@@ -49,21 +53,27 @@ const Step5Images: React.FC<Props> = ({ formData, setFormData }) => {
       </div>
 
       {formData.images && formData.images.length > 0 && (
-        <div className="grid grid-cols-3 gap-4 mt-4">
-          {formData.images.slice(0, 3).map((file: File, index: number) => (
-            <div key={index} className="border rounded-lg overflow-hidden relative">
-              <img
-                src={URL.createObjectURL(file)}
-                alt={file.name}
-                className="w-full h-24 object-cover"
-              />
-              {index === 2 && formData.images.length > 3 && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-bold text-lg">
-                  +{formData.images.length - 3} more
-                </div>
-              )}
-            </div>
-          ))}
+        <div>
+          <p className="text-sm font-semibold text-gray-700 mb-3">{formData.images.length} photo(s) selected</p>
+          <div className="grid grid-cols-3 gap-4">
+            {formData.images.map((file: File, index: number) => (
+              <div key={index} className="border rounded-lg overflow-hidden relative group">
+                <img
+                  src={URL.createObjectURL(file)}
+                  alt={file.name}
+                  className="w-full h-24 object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => handleRemove(index)}
+                  className="absolute top-1 right-1 w-6 h-6 bg-black/60 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                >
+                  <X size={14} />
+                </button>
+                <p className="text-[10px] text-gray-500 truncate px-1 py-0.5">{file.name}</p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

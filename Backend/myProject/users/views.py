@@ -252,10 +252,14 @@ class LandlordPropertyCreateView(generics.CreateAPIView):
             except LandlordUser.DoesNotExist:
                 landlord = None
 
-        # If landlord found, save with landlord
+        # If landlord found, save with landlord + owner
         if landlord:
-            serializer.save(landlord=landlord)
-            return
+            owner_user = getattr(self.request, 'user', None)
+            if not owner_user or not owner_user.is_authenticated:
+                owner_user = User.objects.filter(email__iexact=landlord.email).first()
+            if owner_user:
+                serializer.save(owner=owner_user, landlord=landlord)
+                return
 
         # If not, fallback to normal Django user as owner
         user = getattr(self.request, 'user', None)
