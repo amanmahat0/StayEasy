@@ -21,6 +21,7 @@ from .serializers import (
     KYCSerializer,
     KYCStatusSerializer,
     PropertyCreateSerializer,
+    PropertyUpdateSerializer,
     KYCListSerializer,
     KYCUpdateStatusSerializer,
     PropertySerializer,
@@ -301,27 +302,28 @@ class LandlordPropertyDetailView(generics.RetrieveAPIView):
 # LANDLORD UPDATE PROPERTY
 # ----------------------
 class LandlordPropertyUpdateView(generics.UpdateAPIView):
-    serializer_class = PropertyCreateSerializer
+    serializer_class = PropertyUpdateSerializer
     permission_classes = [permissions.IsAuthenticated]
     lookup_field = 'id'
     http_method_names = ['patch', 'put']
 
     def get_queryset(self):
+        user = self.request.user
         landlord_id = self.request.auth.payload.get('landlord_id')
-        if not landlord_id:
-            return Property.objects.none()
-        return Property.objects.filter(landlord_id=landlord_id)
+        if landlord_id:
+            return Property.objects.filter(landlord_id=landlord_id)
+        return Property.objects.filter(owner=user)
 
     def perform_update(self, serializer):
-        # Always ensure landlord is not changed
         landlord_id = self.request.auth.payload.get('landlord_id')
-        if not landlord_id:
-            raise ValidationError({"error": "Not a landlord account. Please log in as a landlord."})
-        try:
-            landlord = LandlordUser.objects.get(id=landlord_id)
-        except LandlordUser.DoesNotExist:
-            raise ValidationError({"error": "Landlord not found. Please contact support."})
-        serializer.save(landlord=landlord)
+        if landlord_id:
+            try:
+                landlord = LandlordUser.objects.get(id=landlord_id)
+            except LandlordUser.DoesNotExist:
+                raise ValidationError({"error": "Landlord not found."})
+            serializer.save(landlord=landlord)
+        else:
+            serializer.save()
 
 
 # ----------------------

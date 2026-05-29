@@ -73,7 +73,7 @@ const Properties = () => {
 
   // Handle edit property
   const handleEditProperty = (property: Property) => {
-    navigate(`/dashboard/properties/edit/${property.id}`);
+    navigate(`/add-property/${property.id}`);
     setOpenMenuId(null);
   };
 

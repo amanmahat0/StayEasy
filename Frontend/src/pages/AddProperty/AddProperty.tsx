@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Home } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useProperties } from '../../context/PropertyContext';
-import { getPropertyDetail, updateProperty } from '../../services/api';
+import { getPropertyDetail } from '../../services/api';
 
 // Component Imports
 import Stepper from '../../components/AddProperty/Stepper';
@@ -45,6 +45,8 @@ const AddProperty = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const [existingImages, setExistingImages] = useState<Array<{id: number, image: string}>>([]);
+
   // Form State
   const [formData, setFormData] = useState<FormDataType>({
     propertyType: 'apartment',
@@ -62,6 +64,7 @@ const AddProperty = () => {
       setLoading(true);
       try {
         const property = await getPropertyDetail(Number(id));
+        setExistingImages(property.images || []);
         setFormData((prev) => ({
           ...prev,
           propertyType: property.property_type || 'apartment',
@@ -79,6 +82,7 @@ const AddProperty = () => {
           totalFloors: property.total_floors?.toString() || '',
           furnishing: property.furnishing || '',
           amenities: property.amenities || [],
+          features: property.amenities || [],
           availableFrom: property.available_from || '',
           leasePeriod: property.lease_period || '',
           monthlyRent: property.price?.toString() || '',
@@ -118,7 +122,8 @@ const AddProperty = () => {
         if (!formData.monthlyRent.trim()) missing.push('Monthly Rent');
         break;
       case 5:
-        if (!formData.images || formData.images.length === 0) missing.push('at least one photo');
+        if ((!formData.images || formData.images.length === 0) && (!existingImages || existingImages.length === 0))
+          missing.push('at least one photo');
         break;
     }
 
@@ -158,39 +163,57 @@ const AddProperty = () => {
     formPayload.append('description', formData.description);
     formPayload.append('address', formData.fullAddress || `${formData.city}, ${formData.district}`);
     formPayload.append('city', formData.city);
+    formPayload.append('province', formData.province);
+    formPayload.append('district', formData.district);
+    formPayload.append('area', formData.area);
+    if (formData.propertyType !== 'land') {
+      if (formData.bedrooms) formPayload.append('bedrooms', formData.bedrooms);
+      if (formData.bathrooms) formPayload.append('bathrooms', formData.bathrooms);
+      if (formData.floorNumber) formPayload.append('floor_number', formData.floorNumber);
+      if (formData.totalFloors) formPayload.append('total_floors', formData.totalFloors);
+      if (formData.furnishing) formPayload.append('furnishing', formData.furnishing);
+    }
+    if (formData.areaSize) formPayload.append('area_size', formData.areaSize);
+    const features = formData.features || formData.amenities || [];
+    if (features.length > 0) {
+      formPayload.append('amenities', JSON.stringify(features));
+    }
+    if (formData.availableFrom) formPayload.append('available_from', formData.availableFrom);
+    if (formData.leasePeriod) formPayload.append('lease_period', formData.leasePeriod);
     formPayload.append('price', formData.monthlyRent);
+    if (formData.securityDeposit) formPayload.append('security_deposit', formData.securityDeposit);
+    if (formData.maintenanceFee) formPayload.append('maintenance_fee', formData.maintenanceFee);
     formData.images.forEach((file: File) => {
       formPayload.append('images', file);
     });
 
+    if (id && existingImages.length > 0) {
+      const existingIds = existingImages.map(img => img.id);
+      formPayload.append('existing_image_ids', JSON.stringify(existingIds));
+    }
+
     try {
-      let data;
-      if (id) {
-        // PATCH update
-        data = await updateProperty(Number(id), formPayload);
-        alert('Property updated successfully!');
-      } else {
-        // POST create
-        const response = await fetch('http://127.0.0.1:8000/api/users/landlord/properties/create/', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formPayload,
-        });
-        data = await response.json();
-        if (!response.ok) {
-          console.error('Server error:', data);
-          alert('Failed to add property: ' + JSON.stringify(data.error || data));
-          return;
-        }
-        alert('Property added successfully!');
+      const url = id
+        ? `http://127.0.0.1:8000/api/users/landlord/properties/${id}/update/`
+        : 'http://127.0.0.1:8000/api/users/landlord/properties/create/';
+      const method = id ? 'PATCH' : 'POST';
+      const response = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+        body: formPayload,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        console.error('Server error:', data);
+        alert('Failed: ' + JSON.stringify(data.error || data));
+        return;
       }
+      alert(id ? 'Property updated successfully!' : 'Property added successfully!');
       await refreshProperties();
       navigate('/dashboard');
     } catch (err: any) {
       console.error('Request error:', err);
-      alert('An error occurred. Check console for details.');
+      alert('Error: ' + (err.message || 'An error occurred. Check console for details.'));
     }
   };
 
@@ -200,7 +223,7 @@ const AddProperty = () => {
       case 2: return <Step2BasicInfo formData={formData} setFormData={setFormData} />;
       case 3: return <Step3Details formData={formData} setFormData={setFormData} />;
       case 4: return <Step4Pricing formData={formData} setFormData={setFormData} />;
-      case 5: return <Step5Images formData={formData} setFormData={setFormData} />;
+      case 5: return <Step5Images formData={formData} setFormData={setFormData} existingImages={existingImages} setExistingImages={setExistingImages} />;
       default: return null;
     }
   };

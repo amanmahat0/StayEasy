@@ -135,11 +135,9 @@ export const createProperty = async (formData: FormData) => {
 };
 
 // Uses landlord endpoint for PATCH (for landlord-created properties)
-export const updateProperty = async (id: number, data: any) => {
+export const updateProperty = async (id: number, data: FormData) => {
   try {
-    const response = await API.patch(`landlord/properties/${id}/`, data, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await API.patch(`landlord/properties/${id}/update/`, data);
     return response.data;
   } catch (error) {
     console.error("Property update error:", error);

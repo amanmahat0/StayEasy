@@ -145,13 +145,27 @@ class Property(models.Model):
 
     address = models.CharField(max_length=255)
     city = models.CharField(max_length=100)
+    province = models.CharField(max_length=100, blank=True, default='')
+    district = models.CharField(max_length=100, blank=True, default='')
+    area = models.CharField(max_length=100, blank=True, default='')
+
+    bedrooms = models.IntegerField(null=True, blank=True)
+    bathrooms = models.IntegerField(null=True, blank=True)
+    area_size = models.IntegerField(null=True, blank=True)
+    floor_number = models.IntegerField(null=True, blank=True)
+    total_floors = models.IntegerField(null=True, blank=True)
+    furnishing = models.CharField(max_length=50, blank=True, default='')
+    amenities = models.JSONField(default=list, blank=True)
+
+    available_from = models.DateField(null=True, blank=True)
+    lease_period = models.CharField(max_length=100, blank=True, default='')
 
     price = models.DecimalField(max_digits=10, decimal_places=2)
+    security_deposit = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    maintenance_fee = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     available = models.BooleanField(default=True)
-
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='published')
-
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

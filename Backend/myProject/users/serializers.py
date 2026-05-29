@@ -314,13 +314,9 @@ class PropertyCreateSerializer(serializers.ModelSerializer):
         return property_instance
 
 # =====================================================
-# PROPERTY UPDATE SERIALIZER (PUT THIS BELOW CREATE SERIALIZER)
-# This is used ONLY for editing property (with image add/remove support)
-# Do NOT replace PropertyCreateSerializer
+# PROPERTY UPDATE SERIALIZER
+# Used for editing property (with image add/remove support)
 # =====================================================
-import json
-from rest_framework import serializers
-from .models import Property, PropertyImage
 
 
 class PropertyUpdateSerializer(serializers.ModelSerializer):
@@ -329,38 +325,35 @@ class PropertyUpdateSerializer(serializers.ModelSerializer):
         write_only=True,
         required=False
     )
-    existing_images = serializers.CharField(write_only=True, required=False)
+    existing_image_ids = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = Property
         exclude = ["owner", "created_at"]
 
+    def to_internal_value(self, data):
+        data = data.copy()
+        data.pop('owner', None)
+        data.pop('landlord', None)
+        return super().to_internal_value(data)
+
     def update(self, instance, validated_data):
         images = validated_data.pop("images", [])
-        existing_images = validated_data.pop("existing_images", None)
+        existing_image_ids = validated_data.pop("existing_image_ids", None)
 
-        # update normal fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        # -----------------------------
-        # HANDLE IMAGE DELETION SAFELY
-        # -----------------------------
-        if existing_images:
+        if existing_image_ids is not None:
             try:
-                existing_images = json.loads(existing_images)
+                existing_ids = json.loads(existing_image_ids)
             except:
-                existing_images = []
-
+                existing_ids = []
             for img in instance.images.all():
-                # safer comparison using URL
-                if img.image.url not in existing_images:
+                if img.id not in existing_ids:
                     img.delete()
 
-        # -----------------------------
-        # ADD NEW IMAGES
-        # -----------------------------
         for image in images:
             PropertyImage.objects.create(
                 property=instance,
