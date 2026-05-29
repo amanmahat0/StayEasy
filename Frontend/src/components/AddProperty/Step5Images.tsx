@@ -50,13 +50,18 @@ const Step5Images: React.FC<Props> = ({ formData, setFormData }) => {
 
       {formData.images && formData.images.length > 0 && (
         <div className="grid grid-cols-3 gap-4 mt-4">
-          {formData.images.map((file: File, index: number) => (
-            <div key={index} className="border rounded-lg overflow-hidden">
+          {formData.images.slice(0, 3).map((file: File, index: number) => (
+            <div key={index} className="border rounded-lg overflow-hidden relative">
               <img
                 src={URL.createObjectURL(file)}
                 alt={file.name}
                 className="w-full h-24 object-cover"
               />
+              {index === 2 && formData.images.length > 3 && (
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center text-white font-bold text-lg">
+                  +{formData.images.length - 3} more
+                </div>
+              )}
             </div>
           ))}
         </div>

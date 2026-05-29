@@ -43,6 +43,7 @@ const AddProperty = () => {
   const { refreshProperties } = useProperties();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   // Form State
   const [formData, setFormData] = useState<FormDataType>({
@@ -95,12 +96,47 @@ const AddProperty = () => {
     if (id) fetchProperty();
   }, [id, navigate]);
 
+  const validateStep = (): boolean => {
+    setError('');
+    const missing: string[] = [];
+
+    switch (currentStep) {
+      case 2:
+        if (!formData.title.trim()) missing.push('Property Title');
+        if (!formData.description.trim()) missing.push('Description');
+        if (!formData.city.trim()) missing.push('City');
+        if (!formData.fullAddress.trim()) missing.push('Full Address');
+        break;
+      case 3:
+        if (formData.propertyType !== 'land') {
+          if (!formData.bedrooms.trim()) missing.push('Bedrooms');
+          if (!formData.bathrooms.trim()) missing.push('Bathrooms');
+        }
+        if (!formData.areaSize.trim()) missing.push('Area Size');
+        break;
+      case 4:
+        if (!formData.monthlyRent.trim()) missing.push('Monthly Rent');
+        break;
+      case 5:
+        if (!formData.images || formData.images.length === 0) missing.push('at least one photo');
+        break;
+    }
+
+    if (missing.length > 0) {
+      setError(`Please fill in: ${missing.join(', ')}`);
+      return false;
+    }
+    return true;
+  };
+
   const handleNext = () => {
+    if (!validateStep()) return;
     setCurrentStep((prev) => Math.min(prev + 1, 5));
     window.scrollTo(0, 0);
   };
 
   const handlePrev = () => {
+    setError('');
     setCurrentStep((prev) => Math.max(prev - 1, 1));
     window.scrollTo(0, 0);
   };
@@ -205,6 +241,13 @@ const AddProperty = () => {
         <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 mb-8 min-h-[400px]">
           {loading ? <div className="text-center text-gray-500">Loading property...</div> : renderStep()}
         </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium">
+            {error}
+          </div>
+        )}
 
         {/* 5. Footer Buttons */}
         <div className="flex justify-between items-center">
