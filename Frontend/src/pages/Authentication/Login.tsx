@@ -60,7 +60,7 @@ const Login: React.FC = () => {
 
     } catch (err: any) {
       if (err.response?.status === 403) {
-        setError("Please verify your email first");
+        setError("Please verify your email first. Check your inbox (or spam) for the verification link.");
       } else if (err.response?.status === 401) {
         setError("Invalid email or password");
       } else {

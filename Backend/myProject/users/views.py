@@ -51,6 +51,9 @@ class RegisterView(generics.CreateAPIView):
 
     @transaction.atomic
     def perform_create(self, serializer):
+        from django.template.loader import render_to_string
+        from django.utils.html import strip_tags
+
         user = serializer.save()
 
         # ✅ Ensure profile exists
@@ -62,20 +65,20 @@ class RegisterView(generics.CreateAPIView):
         token = default_token_generator.make_token(user)
         verify_link = f"http://localhost:5173/verify-email-confirm/{uid}/{token}"
 
-        send_mail(
-            "Verify your email",
-            f"Click here to verify your account: {verify_link}",
-            "noreply@stayeasy.com",
-            [user.email],
-            fail_silently=False
-        )
-        self._verification_link = verify_link
+        html_message = render_to_string('emails/verify_email.html', {
+            'user': user,
+            'verify_link': verify_link,
+        })
+        plain_message = strip_tags(html_message)
 
-    def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
-        if hasattr(self, "_verification_link"):
-            response.data["verification_link"] = self._verification_link
-        return response
+        send_mail(
+            "Verify your email - StayEasy",
+            plain_message,
+            None,
+            [user.email],
+            fail_silently=False,
+            html_message=html_message,
+        )
 
 
 # ----------------------
@@ -385,10 +388,9 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         # ✅ Ensure profile exists
         profile, _ = Profile.objects.get_or_create(user=user)
 
-        # Admin bypasses email verification
-        # TODO: In production, enforce email verification
-        # if not user.is_superuser and not profile.email_verified:
-        #     return Response({"error": "Email not verified"}, status=403)
+        # Enforce email verification (admin/superuser bypasses)
+        if not user.is_superuser and not profile.email_verified:
+            return Response({"error": "Email not verified"}, status=403)
 
         # Attach username for JWT authenticate
         request.data["username"] = user.username

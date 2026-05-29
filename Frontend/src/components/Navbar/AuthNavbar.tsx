@@ -29,7 +29,7 @@ export default function Navbar() {
           {/* ========== DESKTOP NAV LINKS ========== */}
           <div className="hidden lg:flex items-center gap-10">
             <NavItem to="/features" label="Features" />
-            <NavItem to="/properties" label="Properties" />
+            <NavItem to="/login" label="Properties" />
             <NavItem to="/how-it-works" label="How It Works" />
             <NavItem to="/about" label="About" />
           </div>
@@ -115,7 +115,7 @@ export default function Navbar() {
               />
 
               <MobileNavItem
-                to="/properties"
+                to="/login"
                 label="Properties"
                 setMobileMenuOpen={setMobileMenuOpen}
               />

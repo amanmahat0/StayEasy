@@ -16,6 +16,7 @@ import VerifyEmailConfirm from "./pages/Authentication/VerifyEmailConfirm";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import Profile from "./pages/Profile/profile";
 import AboutPage from "./pages/AboutUs/AboutUs";
+import HowItWorks from "./pages/HowItWorks/HowItWorks";
 
 // --- 2. USER FEATURES (KYC & PROPERTIES) ---
 import KYCForm from "./pages/KYC/KYCForm";
@@ -64,6 +65,7 @@ export default function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
       <Route path="/about" element={<AboutPage />} />
+      <Route path="/how-it-works" element={<HowItWorks />} />
       <Route path="/verify-email" element={<VerifyEmailInfo />} />
       <Route 
         path="/verify-email-confirm/:uid/:token" 
