@@ -839,13 +839,19 @@ class BookingCreateView(generics.CreateAPIView):
 # BOOKING - USER LIST
 # ----------------------
 class UserBookingListView(generics.ListAPIView):
-    """User: Get their own bookings"""
+    """User: Get their own bookings (active only by default)"""
     serializer_class = BookingDetailSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        """Get only bookings made by the current user"""
-        return Booking.objects.filter(user=self.request.user).order_by('-created_at')
+        """Get only active bookings made by the current user (exclude cancelled)"""
+        user = self.request.user
+        # Exclude cancelled bookings from the default view
+        # Users can optionally view cancelled bookings via a separate endpoint if needed
+        return Booking.objects.filter(
+            user=user,
+            status__in=['pending', 'processing', 'confirmed', 'completed']
+        ).order_by('-created_at')
 
 
 # ----------------------
