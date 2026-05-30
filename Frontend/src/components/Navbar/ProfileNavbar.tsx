@@ -1,22 +1,21 @@
-import { useNavigate } from "react-router-dom";
 import { Home, ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const ProfileNavbar = () => {
   const navigate = useNavigate();
-
   return (
     <header className="w-full bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         
         {/* Left: Logo */}
-        <div className="flex items-center gap-2">
+        <a href="#" onClick={(e) => { e.preventDefault(); navigate(window.location.pathname, { replace: true }); }} className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-lg bg-[#A989C8] flex items-center justify-center text-white">
             <Home size={18} />
           </div>
           <span className="text-lg font-semibold text-gray-900">
             StayEasy
           </span>
-        </div>
+        </a>
 
         {/* Right: Back to Dashboard */}
         <button

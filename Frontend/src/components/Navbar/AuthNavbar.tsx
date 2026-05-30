@@ -1,15 +1,11 @@
 import { Home, Menu, X } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-
-  const handleLogoClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    window.location.reload();
-  };
+  const navigate = useNavigate();
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50 w-full">
@@ -20,8 +16,8 @@ export default function Navbar() {
           
           {/* ========== LOGO ========== */}
           <a
-            href="/"
-            onClick={handleLogoClick}
+            href="#"
+            onClick={(e) => { e.preventDefault(); navigate(window.location.pathname, { replace: true }); }}
             className="flex items-center gap-2 sm:gap-3 flex-shrink-0"
           >
             <div className="w-10 h-10 sm:w-11 sm:h-11 bg-[#A989C8] rounded-xl flex items-center justify-center shadow-md">

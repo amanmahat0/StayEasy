@@ -52,7 +52,8 @@ import RoleBasedRoute from "./components/Routes/RoleBasedRoute";
  * Wraps routes that require a user to be logged in.
  */
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, authLoading } = useAuth();
+  if (authLoading) return null; // or a spinner
   return isLoggedIn ? <>{children}</> : <Navigate to="/login" />;
 };
 

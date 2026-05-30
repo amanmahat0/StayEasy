@@ -7,7 +7,9 @@ interface Props {
 }
 
 const RoleBasedRoute = ({ children, allowedRoles }: Props) => {
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn, user, authLoading } = useAuth();
+
+  if (authLoading) return null;
 
   if (!isLoggedIn) {
     return <Navigate to="/login" />;

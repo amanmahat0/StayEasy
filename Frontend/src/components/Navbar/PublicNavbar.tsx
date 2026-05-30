@@ -14,11 +14,6 @@ export default function PublicNavbar() {
   const location = useLocation();
   const [unread, setUnread] = useState(0);
 
-  const handleLogoClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    window.location.reload();
-  };
-
   const refreshUnread = useCallback(() => {
     if (!user?.id) return;
     chatService.getConversations().then((conversations) => {
@@ -76,7 +71,7 @@ export default function PublicNavbar() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between h-20">
           {/* LOGO */}
-          <a href="/" onClick={handleLogoClick} className="flex items-center gap-3">
+          <a href="#" onClick={(e) => { e.preventDefault(); navigate(window.location.pathname, { replace: true }); }} className="flex items-center gap-3">
             <div className="w-11 h-11 bg-[#A989C8] rounded-xl flex items-center justify-center shadow-md">
               <Home className="w-6 h-6 text-white" />
             </div>

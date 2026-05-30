@@ -20,6 +20,7 @@ interface AuthContextType {
   logout: () => void;
   fetchProfile: () => Promise<void>;
   backendAvailable: boolean;
+  authLoading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -30,6 +31,7 @@ export const AuthProvider = ({ children }: any) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [backendAvailable, setBackendAvailable] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
 
   // Fetch user profile from backend
   const fetchProfile = async () => {
@@ -90,12 +92,14 @@ export const AuthProvider = ({ children }: any) => {
   useEffect(() => {
     const token = localStorage.getItem("access");
     if (token) {
-      fetchProfile();
+      fetchProfile().finally(() => setAuthLoading(false));
+    } else {
+      setAuthLoading(false);
     }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, user, login, logout, fetchProfile, backendAvailable }}>
+    <AuthContext.Provider value={{ isLoggedIn, user, login, logout, fetchProfile, backendAvailable, authLoading }}>
       {children}
     </AuthContext.Provider>
   );
