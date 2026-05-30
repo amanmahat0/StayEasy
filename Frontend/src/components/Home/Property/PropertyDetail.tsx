@@ -470,16 +470,7 @@ export default function PropertyDetails() {
                 </div>
                 <div className="flex justify-between mb-6"><span className="font-bold text-gray-900">Total (First Month)</span><span className="text-2xl font-bold text-[#A989C8]">NPR {(parseInt(property.price) * 3.05).toLocaleString()}</span></div>
                 <div className="mb-6"><label className="text-xs font-bold text-gray-700 uppercase block mb-2">Move-in Date</label><input type="date" className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#A989C8]" /></div>
-                {property.booking_status === "cancelled" ? (
-                  <>
-                    <button disabled className="w-full py-4 bg-gray-400 text-white font-bold rounded-xl shadow-lg mb-3 cursor-not-allowed flex items-center justify-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-white" /> Booked
-                    </button>
-                    <button disabled className="w-full py-4 bg-orange-500 text-white font-bold rounded-xl shadow-lg mb-3 cursor-not-allowed flex items-center justify-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-white" /> Cancelled
-                    </button>
-                  </>
-                ) : property.has_confirmed_booking ? (
+                {property.booking_id && property.has_confirmed_booking ? (
                   <>
                     <button disabled className="w-full py-4 bg-gray-400 text-white font-bold rounded-xl shadow-lg mb-3 cursor-not-allowed flex items-center justify-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-white" /> Booked
@@ -502,6 +493,11 @@ export default function PropertyDetails() {
                       )}
                     </button>
                   </>
+                ) : property.has_confirmed_booking ? (
+                  <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-3 text-center">
+                    <p className="text-orange-700 font-bold text-sm">Currently Booked</p>
+                    <p className="text-orange-600 text-xs mt-1">This property is currently occupied</p>
+                  </div>
                 ) : (
                   <button onClick={() => id && navigate(`/booking/${id}`)} className="w-full py-4 bg-[#A989C8] hover:bg-[#8d6aa9] text-white font-bold rounded-xl shadow-lg transition mb-3">Book Now</button>
                 )}

@@ -166,10 +166,43 @@ const Dashboard = () => {
           {/* KYC Warning */}
           {kyc && kyc.status !== "approved" && (
             <div className="mb-6 p-4 rounded-xl border border-yellow-300 bg-yellow-50 text-yellow-800">
-              {kyc.status === "pending" &&
-                "Your KYC is under review. Some features may be restricted."}
-              {kyc.status === "rejected" &&
-                "Your KYC was rejected. Please resubmit verification documents."}
+              {kyc.status === "pending" ? (
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-bold">KYC Verification Required</p>
+                    <p className="text-sm mt-1">Your KYC is under review. You cannot add new properties until it is approved.</p>
+                  </div>
+                </div>
+              ) : kyc.status === "rejected" ? (
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-bold">KYC Rejected</p>
+                    <p className="text-sm mt-1">Your KYC verification was rejected. Please resubmit valid documents to add properties.</p>
+                    <button
+                      onClick={() => navigate('/kyc')}
+                      className="mt-2 px-4 py-1.5 bg-yellow-200 hover:bg-yellow-300 text-yellow-900 rounded-lg text-sm font-medium transition"
+                    >
+                      Resubmit KYC
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-bold">KYC Not Submitted</p>
+                    <p className="text-sm mt-1">You must submit KYC verification before adding properties.</p>
+                    <button
+                      onClick={() => navigate('/kyc')}
+                      className="mt-2 px-4 py-1.5 bg-yellow-200 hover:bg-yellow-300 text-yellow-900 rounded-lg text-sm font-medium transition"
+                    >
+                      Submit KYC
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

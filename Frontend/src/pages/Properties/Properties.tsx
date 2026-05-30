@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PublicNavbar from "../../components/Navbar/PublicNavbar";
 import Footer from "../../components/Footer";
-import { deleteProperty, updateProperty } from "../../services/api";
+import { deleteProperty, updateProperty, getKYCStatus } from "../../services/api";
 import { useProperties } from "../../context/PropertyContext";
 
 interface Property {
@@ -34,10 +34,12 @@ const Properties = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [kycStatus, setKycStatus] = useState<string | null>(null);
 
-  // Fetch properties on mount
+  // Fetch properties and KYC status on mount
   useEffect(() => {
     fetchProperties();
+    getKYCStatus().then((data) => setKycStatus(data?.status || null)).catch(() => {});
   }, [fetchProperties]);
 
   // Filter properties by search and tab
@@ -181,12 +183,36 @@ const Properties = () => {
           </div>
 
           {/* Add Property Button */}
-          <button 
-            onClick={() => navigate('/add-property')}
-            className="bg-[#A989C8] hover:bg-[#9674b5] text-white px-8 py-4 rounded-2xl font-bold flex items-center gap-2 shadow-md shadow-[#A989C8]/20 transition-all self-start lg:self-center"
-          >
-            <span className="text-xl">+</span> Add Property
-          </button>
+          <div className="self-start lg:self-center">
+            <button 
+              onClick={() => {
+                if (kycStatus === 'pending') {
+                  alert('KYC verification is pending. Please wait for approval before adding properties.');
+                } else if (kycStatus === 'rejected' || kycStatus === 'not_submitted') {
+                  navigate('/kyc');
+                } else {
+                  navigate('/add-property');
+                }
+              }}
+              disabled={kycStatus === 'pending'}
+              className={`px-8 py-4 rounded-2xl font-bold flex items-center gap-2 shadow-md transition-all ${
+                kycStatus === 'pending'
+                  ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                  : 'bg-[#A989C8] hover:bg-[#9674b5] text-white shadow-[#A989C8]/20'
+              }`}
+              title={kycStatus === 'pending' ? 'KYC verification required' : ''}
+            >
+              <span className="text-xl">+</span> Add Property
+            </button>
+            {kycStatus === 'pending' && (
+              <p className="text-xs text-yellow-600 mt-2 text-center">KYC verification required before listing</p>
+            )}
+            {(kycStatus === 'rejected' || kycStatus === 'not_submitted') && (
+              <p className="text-xs text-red-500 mt-2 text-center cursor-pointer hover:underline" onClick={() => navigate('/kyc')}>
+                KYC required - Click to submit
+              </p>
+            )}
+          </div>
         </div>
 
         {/* 3. Property Table */}

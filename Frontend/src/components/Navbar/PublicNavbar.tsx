@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Home, ChevronDown, LogOut, Settings, MessageCircle } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import chatService from "../../services/chatService";
 import socketService from "../../services/socketService";
@@ -11,7 +11,13 @@ export default function PublicNavbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [unread, setUnread] = useState(0);
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    window.location.reload();
+  };
 
   const refreshUnread = useCallback(() => {
     if (!user?.id) return;
@@ -70,32 +76,32 @@ export default function PublicNavbar() {
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between h-20">
           {/* LOGO */}
-          <Link to="/" className="flex items-center gap-3">
+          <a href="/" onClick={handleLogoClick} className="flex items-center gap-3">
             <div className="w-11 h-11 bg-[#A989C8] rounded-xl flex items-center justify-center shadow-md">
               <Home className="w-6 h-6 text-white" />
             </div>
             <span className="text-2xl font-bold text-gray-800">StayEasy</span>
-          </Link>
+          </a>
           {/* NAV LINKS */}
           <div className="hidden md:flex items-center gap-12">
             {role === "owner" ? (
               <>
-                <NavItem to="/dashboard" label="Dashboard" />
-                <NavItem to="/properties" label="Properties" />
+                <NavItem to="/dashboard" label="Dashboard" currentPath={location.pathname} />
+                <NavItem to="/properties" label="Properties" currentPath={location.pathname} />
               </>
             ) : (
               <>
-                <NavItem to="/home" label="Home" />
+                <NavItem to="/home" label="Home" currentPath={location.pathname} />
                 {role === "tenant" && (
                   <>
-                    <NavItem to="/my-bookings" label="My Bookings" />
-                    <NavItem to="/favorites" label="Favorites" />
+                    <NavItem to="/my-bookings" label="My Bookings" currentPath={location.pathname} />
+                    <NavItem to="/favorites" label="Favorites" currentPath={location.pathname} />
                   </>
                 )}
               </>
             )}
 
-            <NavItem to="/about" label="About Us" />
+            <NavItem to="/about" label="About Us" currentPath={location.pathname} />
           </div>
           {/* USER SECTION */}
           <div className="flex items-center gap-4">
@@ -172,11 +178,14 @@ export default function PublicNavbar() {
 }
 
 /* NAV ITEM */
-function NavItem({ to, label }: { to: string; label: string }) {
+function NavItem({ to, label, currentPath }: { to: string; label: string; currentPath?: string }) {
+  const isActive = currentPath === to || currentPath?.startsWith(to + "/");
   return (
     <Link
       to={to}
-      className="text-gray-700 font-medium hover:text-[#A989C8] transition"
+      className={`font-medium transition ${
+        isActive ? "text-[#A989C8]" : "text-gray-700 hover:text-[#A989C8]"
+      }`}
     >
       {label}
     </Link>

@@ -1,9 +1,15 @@
 import { Home, Menu, X } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const location = useLocation();
+
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    window.location.reload();
+  };
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50 w-full">
@@ -13,8 +19,9 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-20">
           
           {/* ========== LOGO ========== */}
-          <Link
-            to="/"
+          <a
+            href="/"
+            onClick={handleLogoClick}
             className="flex items-center gap-2 sm:gap-3 flex-shrink-0"
           >
             <div className="w-10 h-10 sm:w-11 sm:h-11 bg-[#A989C8] rounded-xl flex items-center justify-center shadow-md">
@@ -24,14 +31,14 @@ export default function Navbar() {
             <span className="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">
               StayEasy
             </span>
-          </Link>
+          </a>
 
           {/* ========== DESKTOP NAV LINKS ========== */}
           <div className="hidden lg:flex items-center gap-10">
-            <NavItem to="/features" label="Features" />
-            <NavItem to="/login" label="Properties" />
-            <NavItem to="/how-it-works" label="How It Works" />
-            <NavItem to="/about" label="About" />
+            <NavItem to="/features" label="Features" currentPath={location.pathname} />
+            <NavItem to="/properties" label="Properties" currentPath={location.pathname} />
+            <NavItem to="/how-it-works" label="How It Works" currentPath={location.pathname} />
+            <NavItem to="/about" label="About" currentPath={location.pathname} />
           </div>
 
           {/* ========== DESKTOP ACTION BUTTONS ========== */}
@@ -115,7 +122,7 @@ export default function Navbar() {
               />
 
               <MobileNavItem
-                to="/login"
+                to="/properties"
                 label="Properties"
                 setMobileMenuOpen={setMobileMenuOpen}
               />
@@ -189,28 +196,28 @@ export default function Navbar() {
 interface NavItemProps {
   to: string;
   label: string;
+  currentPath: string;
 }
 
-function NavItem({ to, label }: NavItemProps) {
+function NavItem({ to, label, currentPath }: NavItemProps) {
+  const isActive = currentPath === to || currentPath.startsWith(to + "/");
   return (
     <Link
       to={to}
-      className="
+      className={`
         relative
-        text-gray-700
         font-medium
         transition-colors
-        hover:text-[#A989C8]
+        whitespace-nowrap
+        ${isActive ? 'text-[#A989C8]' : 'text-gray-700 hover:text-[#A989C8]'}
         after:absolute
         after:left-0
         after:-bottom-2
         after:h-[2px]
-        after:w-0
         after:bg-[#A989C8]
         after:transition-all
-        hover:after:w-full
-        whitespace-nowrap
-      "
+        ${isActive ? 'after:w-full' : 'after:w-0 hover:after:w-full'}
+      `}
     >
       {label}
     </Link>

@@ -1,5 +1,6 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { AlertTriangle, X } from "lucide-react";
 
 // --- CSS IMPORTS ---
 import "./styles/navigation.css";
@@ -44,6 +45,7 @@ import PropertyManagement from "./pages/Admin/PropertyManagement";
 import BookingManagement from "./pages/Admin/BookingManagement";
 
 import { useAuth } from "./context/AuthContext";
+import RoleBasedRoute from "./components/Routes/RoleBasedRoute";
 
 /**
  * ProtectedRoute Component
@@ -51,7 +53,6 @@ import { useAuth } from "./context/AuthContext";
  */
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isLoggedIn } = useAuth();
-  // If not logged in, redirect to login page
   return isLoggedIn ? <>{children}</> : <Navigate to="/login" />;
 };
 
@@ -105,31 +106,27 @@ export default function App() {
       {/* Main Admin Entry Point */}
       <Route 
         path="/admin" 
-        element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} 
+        element={<RoleBasedRoute allowedRoles={['admin']}><AdminDashboard /></RoleBasedRoute>} 
       />
       
-      {/* KYC Review Section */}
       <Route 
         path="/admin/kyc" 
-        element={<ProtectedRoute><KYCVerifications /></ProtectedRoute>} 
+        element={<RoleBasedRoute allowedRoles={['admin']}><KYCVerifications /></RoleBasedRoute>} 
       />
 
-      {/* User Management Section */}
       <Route 
         path="/admin/users" 
-        element={<ProtectedRoute><UserManagement /></ProtectedRoute>} 
+        element={<RoleBasedRoute allowedRoles={['admin']}><UserManagement /></RoleBasedRoute>} 
       />
 
-      {/* Property/Listing Management Section */}
       <Route 
         path="/admin/properties" 
-        element={<ProtectedRoute><PropertyManagement /></ProtectedRoute>} 
+        element={<RoleBasedRoute allowedRoles={['admin']}><PropertyManagement /></RoleBasedRoute>} 
       />
 
-      {/* Booking & Revenue Section */}
       <Route 
         path="/admin/bookings" 
-        element={<ProtectedRoute><BookingManagement /></ProtectedRoute>} 
+        element={<RoleBasedRoute allowedRoles={['admin']}><BookingManagement /></RoleBasedRoute>} 
       />
 
       {/* ==========================================
