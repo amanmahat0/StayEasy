@@ -52,7 +52,6 @@ export default function PropertyDetails() {
     refund_percentage: number;
     policy_applied: string;
   } | null>(null);
-  const [bookingStatus, setBookingStatus] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -230,7 +229,6 @@ export default function PropertyDetails() {
           booking_status: "cancelled",
         }));
 
-        setBookingStatus("cancelled");
         setShowCancelModal(false);
 
         // Show success message for 5 seconds then hide

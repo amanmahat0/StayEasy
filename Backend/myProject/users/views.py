@@ -225,6 +225,12 @@ class LandlordPropertyCreateView(generics.CreateAPIView):
     serializer_class = PropertyCreateSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_serializer_class(self):
+        """Use PropertyCreateSerializer for input, PropertySerializer for response"""
+        if self.request.method == 'POST':
+            return PropertyCreateSerializer
+        return PropertySerializer
+
     def perform_create(self, serializer):
         # Try to get landlord from JWT payload, fallback to authenticated user, fallback to email match
         payload = getattr(getattr(self.request, 'auth', None), 'payload', None)
@@ -324,6 +330,12 @@ class LandlordPropertyUpdateView(generics.UpdateAPIView):
             serializer.save(landlord=landlord)
         else:
             serializer.save()
+
+    def get_serializer_class(self):
+        """Use PropertyUpdateSerializer for input, PropertySerializer for response"""
+        if self.request.method in ['PATCH', 'PUT']:
+            return PropertyUpdateSerializer
+        return PropertySerializer
 
 
 # ----------------------

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
+import json
 from .models import (
     Profile, KYC, Property, PropertyImage, Booking, Favorite, ViewedProperty, 
     LandlordUser, Chat, Message, CancellationPolicy, Payment, Refund, Cancellation, Notification

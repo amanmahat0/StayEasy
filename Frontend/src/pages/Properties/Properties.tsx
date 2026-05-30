@@ -33,6 +33,7 @@ const Properties = () => {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Fetch properties on mount
   useEffect(() => {
@@ -59,6 +60,7 @@ const Properties = () => {
 
   // Handle delete property
   const handleDeleteProperty = async (property: Property) => {
+    setDeleteLoading(true);
     try {
       await deleteProperty(property.id);
       setShowDeleteConfirm(null);
@@ -67,7 +69,9 @@ const Properties = () => {
       await fetchProperties();
     } catch (error) {
       console.error('Failed to delete property:', error);
-      alert('Failed to delete property');
+      alert('Failed to delete property. Please try again.');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -117,7 +121,7 @@ const Properties = () => {
       return `http://127.0.0.1:8000${property.main_image}`;
     }
     if (property.images && property.images.length > 0) {
-      return `http://127.0.0.1:8000/uploads/${property.images[0].image}`;
+      return `http://127.0.0.1:8000${property.images[0].image}`;
     }
     return 'https://via.placeholder.com/150';
   };
@@ -294,7 +298,8 @@ const Properties = () => {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(null)}
-                className="flex-1 px-4 py-3 rounded-lg bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors"
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-3 rounded-lg bg-gray-100 text-gray-700 font-bold hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -305,9 +310,10 @@ const Properties = () => {
                     handleDeleteProperty(property);
                   }
                 }}
-                className="flex-1 px-4 py-3 rounded-lg bg-red-500 text-white font-bold hover:bg-red-600 transition-colors"
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-3 rounded-lg bg-red-500 text-white font-bold hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Delete
+                {deleteLoading ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

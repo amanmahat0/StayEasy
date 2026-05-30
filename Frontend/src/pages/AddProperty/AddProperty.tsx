@@ -11,6 +11,7 @@ import Step2BasicInfo from '../../components/AddProperty/Step2BasicInfo';
 import Step3Details from '../../components/AddProperty/Step3Details';
 import Step4Pricing from '../../components/AddProperty/Step4Pricing';
 import Step5Images from '../../components/AddProperty/Step5Images';
+import SuccessModal from '../../components/UI/SuccessModal';
 
 // Define TypeScript type for formData
 type FormDataType = {
@@ -44,6 +45,13 @@ const AddProperty = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<{
+    title: string;
+    message: string;
+    isUpdate: boolean;
+  } | null>(null);
+  const [newPropertyId, setNewPropertyId] = useState<number | null>(null);
 
   const [existingImages, setExistingImages] = useState<Array<{id: number, image: string}>>([]);
 
@@ -174,7 +182,7 @@ const AddProperty = () => {
       if (formData.furnishing) formPayload.append('furnishing', formData.furnishing);
     }
     if (formData.areaSize) formPayload.append('area_size', formData.areaSize);
-    const features = formData.features || formData.amenities || [];
+    const features = formData.amenities || [];
     if (features.length > 0) {
       formPayload.append('amenities', JSON.stringify(features));
     }
@@ -193,6 +201,7 @@ const AddProperty = () => {
     }
 
     try {
+      setLoading(true);
       const url = id
         ? `http://127.0.0.1:8000/api/users/landlord/properties/${id}/update/`
         : 'http://127.0.0.1:8000/api/users/landlord/properties/create/';
@@ -208,12 +217,25 @@ const AddProperty = () => {
         alert('Failed: ' + JSON.stringify(data.error || data));
         return;
       }
-      alert(id ? 'Property updated successfully!' : 'Property added successfully!');
+
+      // Show success modal
+      const isUpdate = !!id;
+      setNewPropertyId(data.id || newPropertyId);
+      setSuccessMessage({
+        title: isUpdate ? 'Property Updated Successfully!' : 'Property Added Successfully!',
+        message: isUpdate
+          ? 'Your property details have been updated successfully. The latest changes are now visible on your listing.'
+          : 'Your property has been listed successfully and is now available for tenants to view and book.',
+        isUpdate,
+      });
+      setShowSuccessModal(true);
+
       await refreshProperties();
-      navigate('/dashboard');
     } catch (err: any) {
       console.error('Request error:', err);
       alert('Error: ' + (err.message || 'An error occurred. Check console for details.'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -230,6 +252,27 @@ const AddProperty = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-10">
+      {/* Success Modal */}
+      {successMessage && (
+        <SuccessModal
+          isOpen={showSuccessModal}
+          title={successMessage.title}
+          message={successMessage.message}
+          isUpdate={successMessage.isUpdate}
+          onClose={() => {
+            setShowSuccessModal(false);
+            navigate('/dashboard');
+          }}
+          onViewProperty={
+            !successMessage.isUpdate && newPropertyId
+              ? () => {
+                  navigate(`/property/${newPropertyId}`);
+                }
+              : undefined
+          }
+        />
+      )}
+
       {/* 1. Navigation Bar */}
       <div className="bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto flex justify-between items-center">

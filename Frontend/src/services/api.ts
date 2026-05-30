@@ -135,7 +135,7 @@ export const createProperty = async (formData: FormData) => {
 };
 
 // Uses landlord endpoint for PATCH (for landlord-created properties)
-export const updateProperty = async (id: number, data: FormData) => {
+export const updateProperty = async (id: number, data: FormData | any) => {
   try {
     const response = await API.patch(`landlord/properties/${id}/update/`, data);
     return response.data;
