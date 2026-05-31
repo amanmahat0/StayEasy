@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { getProfile, updateProfile, getKYCDetail, submitKYC } from "../../services/api";
 import { useNavigate } from "react-router-dom";
+import { API_BASE } from "../../config";
 
 const PersonalInformation = () => {
   const { user } = useAuth();
@@ -55,7 +56,7 @@ const PersonalInformation = () => {
           emergency_contact: profile.emergency_contact || "",
         });
         setProfilePicture(profile.profile_picture
-          ? `http://127.0.0.1:8000${profile.profile_picture}`
+          ? `${API_BASE}${profile.profile_picture}`
           : null
         );
 
@@ -389,13 +390,13 @@ const PersonalInformation = () => {
                     Uploaded Document
                   </h4>
                   <a
-                    href={`http://127.0.0.1:8000${kyc.document_image}`}
+                    href={`${API_BASE}${kyc.document_image}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block relative rounded-xl overflow-hidden border border-gray-200 bg-gray-50 hover:border-[#A989C8] transition-colors group max-w-md"
                   >
                     <img
-                      src={`http://127.0.0.1:8000${kyc.document_image}`}
+                      src={`${API_BASE}${kyc.document_image}`}
                       alt="KYC Document"
                       className="w-full h-52 object-contain"
                       onError={(e) => {

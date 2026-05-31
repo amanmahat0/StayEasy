@@ -11,6 +11,7 @@ import {
 import PublicNavbar from "../../Navbar/PublicNavbar";
 import Footer from "../../Footer";
 import { getUserFavorites, removeFavorite } from "../../../services/api";
+import { API_BASE } from "../../../config";
 
 export default function Wishlist() {
   const navigate = useNavigate();
@@ -80,7 +81,7 @@ export default function Wishlist() {
             <div className="flex flex-col gap-6 mb-16">
               {favorites.map((favorite) => {
                 const prop = favorite.property_info;
-                const imageUrl = prop.images?.[0]?.image ? `http://127.0.0.1:8000${prop.images[0].image}` : "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267";
+                const imageUrl = prop.images?.[0]?.image ? `${API_BASE}${prop.images[0].image}` : "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267";
                 
                 return (
                   <div 

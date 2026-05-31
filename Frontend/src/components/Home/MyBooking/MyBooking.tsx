@@ -4,6 +4,7 @@ import { Eye, CheckCircle2, MapPin } from "lucide-react";
 import PublicNavbar from "../../Navbar/PublicNavbar"; 
 import Footer from "../../Footer";
 import { getUserBookings } from "../../../services/api";
+import { API_BASE } from "../../../config";
 
 export default function MyBooking() {
   const navigate = useNavigate();
@@ -89,7 +90,7 @@ export default function MyBooking() {
                 {/* Image Thumbnail */}
                 <div className="w-full md:w-56 h-36 rounded-[18px] overflow-hidden shrink-0 border border-slate-50">
                   <img 
-                    src={booking.property_info.images?.[0]?.image ? `http://127.0.0.1:8000${booking.property_info.images[0].image}` : "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267"} 
+                    src={booking.property_info.images?.[0]?.image ? `${API_BASE}${booking.property_info.images[0].image}` : "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267"} 
                     alt={booking.property_info.title} 
                     className="w-full h-full object-cover"
                   />

@@ -4,6 +4,7 @@ import PublicNavbar from "../../components/Navbar/PublicNavbar";
 import Footer from "../../components/Footer";
 import { deleteProperty, updateProperty, getKYCStatus } from "../../services/api";
 import { useProperties } from "../../context/PropertyContext";
+import { API_BASE } from "../../config";
 
 interface Property {
   id: number;
@@ -120,10 +121,10 @@ const Properties = () => {
   // Get image URL with proper backend path
   const getImageUrl = (property: Property): string => {
     if (property.main_image) {
-      return `http://127.0.0.1:8000${property.main_image}`;
+      return `${API_BASE}${property.main_image}`;
     }
     if (property.images && property.images.length > 0) {
-      return `http://127.0.0.1:8000${property.images[0].image}`;
+      return `${API_BASE}${property.images[0].image}`;
     }
     return 'https://via.placeholder.com/150';
   };

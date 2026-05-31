@@ -14,32 +14,32 @@ def clear_property_data(apps, schema_editor):
     
     # Step 1: Delete all viewed properties (depends on Property)
     ViewedProperty.objects.all().delete()
-    print(f"✓ Deleted all ViewedProperty records")
-    
+    print("Deleted all ViewedProperty records")
+
     # Step 2: Delete all favorites (depends on Property)
     Favorite.objects.all().delete()
-    print(f"✓ Deleted all Favorite records")
-    
+    print("Deleted all Favorite records")
+
     # Step 3: Delete all property images (depends on Property)
     PropertyImage.objects.all().delete()
-    print(f"✓ Deleted all PropertyImage records")
-    
+    print("Deleted all PropertyImage records")
+
     # Step 4: Delete all bookings (depends on Property and User)
     Booking.objects.all().delete()
-    print(f"✓ Deleted all Booking records")
-    
+    print("Deleted all Booking records")
+
     # Step 5: Delete all properties (final step)
     Property.objects.all().delete()
-    print(f"✓ Deleted all Property records")
-    
+    print("Deleted all Property records")
+
     print("=" * 60)
     print("DATABASE CLEANUP COMPLETE")
     print("=" * 60)
-    print("✓ All property data removed")
-    print("✓ All booking records deleted")
-    print("✓ All images dereferenced")
-    print("✓ Database integrity maintained")
-    print("✓ User/KYC/LandlordUser data preserved")
+    print("All property data removed")
+    print("All booking records deleted")
+    print("All images dereferenced")
+    print("Database integrity maintained")
+    print("User/KYC/LandlordUser data preserved")
     print("=" * 60)
 
 

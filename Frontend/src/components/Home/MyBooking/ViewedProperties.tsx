@@ -9,6 +9,7 @@ import {
 import PublicNavbar from "../../Navbar/PublicNavbar";
 import Footer from "../../Footer";
 import { getViewedProperties } from "../../../services/api";
+import { API_BASE } from "../../../config";
 
 export default function ViewedProperties() {
   const [viewedProperties, setViewedProperties] = useState<any[]>([]);
@@ -78,7 +79,7 @@ export default function ViewedProperties() {
             <div className="flex flex-col gap-6">
               {viewedProperties.map((viewed) => {
                 const prop = viewed.property_info;
-                const imageUrl = prop.images?.[0]?.image ? `http://127.0.0.1:8000${prop.images[0].image}` : "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800";
+                const imageUrl = prop.images?.[0]?.image ? `${API_BASE}${prop.images[0].image}` : "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800";
                 
                 return (
                   <div 

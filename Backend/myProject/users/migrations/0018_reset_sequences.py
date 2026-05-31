@@ -18,16 +18,16 @@ def reset_sequences(apps, schema_editor):
         for seq_name in sequences_to_reset:
             try:
                 cursor.execute(f"ALTER SEQUENCE {seq_name} RESTART WITH 1;")
-                print(f"✓ Reset sequence: {seq_name}")
+                print(f"OK Reset sequence: {seq_name}")
             except Exception as e:
-                print(f"⚠ Sequence {seq_name} - {str(e)}")
+                print(f"WARN Sequence {seq_name} - {str(e)}")
         
     print("=" * 60)
     print("SEQUENCE RESET COMPLETE")
     print("=" * 60)
-    print("✓ All auto-increment counters reset to 1")
-    print("✓ Next property will have ID=1")
-    print("✓ Next booking will have ID=1")
+    print("OK All auto-increment counters reset to 1")
+    print("OK Next property will have ID=1")
+    print("OK Next booking will have ID=1")
     print("=" * 60)
 
 

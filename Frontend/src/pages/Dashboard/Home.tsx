@@ -6,6 +6,7 @@ import { MapPin, Heart, SlidersHorizontal, Grid, List } from "lucide-react";
 import PublicNavbar from "../../components/Navbar/PublicNavbar";
 import Footer from "../../components/Footer";
 import { getProperties, getUserFavorites, addFavorite, removeFavorite } from "../../services/api";
+import { API_BASE } from "../../config";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -200,7 +201,7 @@ export default function Home() {
                   {/* **Image Section with Badges** */}
                   <div className="relative h-56 overflow-hidden bg-gray-100 group">
                     <img 
-                      src={`http://127.0.0.1:8000${property.images[0]?.image}`} 
+                      src={`${API_BASE}${property.images[0]?.image}`} 
                       alt={property.title} 
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out" 
                       onError={(e) => {

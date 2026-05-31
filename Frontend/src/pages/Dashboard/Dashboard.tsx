@@ -17,6 +17,7 @@ import { toConversationView } from "../../utils/chatUtils";
 import { getKYCStatus, getLandlordDashboard, deleteProperty, getUserBookings, getUserFavorites, getSuspensionStatus, getUserWarnings, markWarningRead } from "../../services/api";
 import API from "../../services/api";
 import type { ConversationView } from "../../type";
+import { API_BASE } from "../../config";
 
 interface DashboardData {
   kyc_status?: string;
@@ -326,7 +327,7 @@ const Dashboard = () => {
                           <div className="flex flex-col sm:flex-row gap-4">
                             <div className="w-full sm:w-32 h-40 sm:h-32 bg-gray-100 rounded-lg overflow-hidden shrink-0">
                               {property.images && property.images.length > 0 ? (
-                                <img src={`http://127.0.0.1:8000${property.images[0].image}`} alt={property.title} className="w-full h-full object-cover" />
+                                <img src={`${API_BASE}${property.images[0].image}`} alt={property.title} className="w-full h-full object-cover" />
                               ) : (
                                 <div className="w-full h-full bg-gray-200 flex items-center justify-center">
                                   <span className="text-gray-400 text-sm">No image</span>

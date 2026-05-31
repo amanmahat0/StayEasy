@@ -1,8 +1,8 @@
 import io, { Socket } from "socket.io-client";
 import type { MessagePayload } from "../type";
+import { SOCKET_URL } from "../config";
 
-const SOCKET_URL = "http://localhost:3001";
-const UPLOAD_URL = "http://localhost:3001/api/upload-image";
+const UPLOAD_URL = `${SOCKET_URL}/api/upload-image`;
 
 interface JoinRoomData {
   roomId: string;

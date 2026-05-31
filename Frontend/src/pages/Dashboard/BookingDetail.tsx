@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, X, AlertCircle, CheckCircle2 } from "lucide-react";
+import { API_BASE } from "../../config";
 
 interface BookingDetail {
   id: number;
@@ -48,14 +49,14 @@ const BookingDetail = () => {
   const [cancellationSuccess, setCancellationSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  const API_BASE = "http://localhost:8000/api/users";
+  
 
   // Fetch Booking Detail
   useEffect(() => {
     const fetchBooking = async () => {
       try {
         const token = localStorage.getItem("access");
-        const response = await axios.get(`${API_BASE}/bookings/${id}/`, {
+        const response = await axios.get(`${API_BASE}/api/users/bookings/${id}/`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         setBooking(response.data);
@@ -119,7 +120,7 @@ const BookingDetail = () => {
     try {
       const token = localStorage.getItem("access");
       const response = await axios.post(
-        `${API_BASE}/bookings/${id}/cancel/`,
+        `${API_BASE}/api/users/bookings/${id}/cancel/`,
         { reason: "User requested cancellation" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -256,7 +257,7 @@ const BookingDetail = () => {
             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
               {booking.property_info.images[0] ? (
                 <img
-                  src={`http://localhost:8000${booking.property_info.images[0].image}`}
+                  src={`${API_BASE}${booking.property_info.images[0].image}`}
                   alt={booking.property_info.title}
                   className="w-full h-80 object-cover"
                 />

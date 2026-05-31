@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Header } from "../../components/admin/Header";
 import { Package, Loader2, Edit2 } from "lucide-react";
 import API from "../../services/api";
+import { API_BASE } from "../../config";
 
 interface Booking {
   id: number;
@@ -204,7 +205,7 @@ const BookingManagement = () => {
                   <div className="col-span-2">
                     {booking.property_info.images[0] ? (
                       <img
-                        src={`http://localhost:8000${booking.property_info.images[0].image}`}
+                        src={`${API_BASE}${booking.property_info.images[0].image}`}
                         alt={booking.property_info.title}
                         className="w-full h-32 object-cover rounded-lg"
                       />

@@ -2,6 +2,7 @@
 import { useParams } from "react-router-dom";
 import { ArrowLeft, Loader } from "lucide-react";
 import API from "../../../services/api";
+import { API_BASE } from "../../../config";
 
 export default function Details({ onNext, onBack }: any) {
   const { id: propertyId } = useParams() as any;
@@ -183,7 +184,7 @@ export default function Details({ onNext, onBack }: any) {
     <img
       src={
         property.images?.[0]?.image
-          ? `http://127.0.0.1:8000${property.images[0].image}`
+          ? `${API_BASE}${property.images[0].image}`
           : "/no-image.png"
       }
       className="w-full h-full object-cover"

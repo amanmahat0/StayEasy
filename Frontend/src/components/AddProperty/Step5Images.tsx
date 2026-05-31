@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { Upload, X } from 'lucide-react';
+import { API_BASE } from "../../config";
 
 interface Props {
   formData: any;
@@ -61,7 +62,7 @@ const Step5Images: React.FC<Props> = ({ formData, setFormData, existingImages, s
                 items.push(
                   <div key={`existing-${img.id}`} className="border rounded-lg overflow-hidden relative group">
                     <img
-                      src={`http://127.0.0.1:8000${img.image}`}
+                      src={`${API_BASE}${img.image}`}
                       alt="Property"
                       className="w-full h-24 object-cover"
                     />

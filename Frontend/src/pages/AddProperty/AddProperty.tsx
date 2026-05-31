@@ -12,6 +12,7 @@ import Step3Details from '../../components/AddProperty/Step3Details';
 import Step4Pricing from '../../components/AddProperty/Step4Pricing';
 import Step5Images from '../../components/AddProperty/Step5Images';
 import SuccessModal from '../../components/UI/SuccessModal';
+import { API_BASE } from "../../config";
 
 // Define TypeScript type for formData
 type FormDataType = {
@@ -203,8 +204,8 @@ const AddProperty = () => {
     try {
       setLoading(true);
       const url = id
-        ? `http://127.0.0.1:8000/api/users/landlord/properties/${id}/update/`
-        : 'http://127.0.0.1:8000/api/users/landlord/properties/create/';
+        ? `${API_BASE}/api/users/landlord/properties/${id}/update/`
+        : `${API_BASE}/api/users/landlord/properties/create/`;
       const method = id ? 'PATCH' : 'POST';
       const response = await fetch(url, {
         method,

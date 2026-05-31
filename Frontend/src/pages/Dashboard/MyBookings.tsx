@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Package, Loader2, Eye, X, AlertCircle } from "lucide-react";
+import { API_BASE } from "../../config";
 
 interface Booking {
   id: number;
@@ -27,7 +28,7 @@ const MyBookings = () => {
   const [cancelLoading, setCancelLoading] = useState<number | null>(null);
   const navigate = useNavigate();
 
-  const API_BASE = "http://localhost:8000/api/users";
+  
 
   // Fetch User Bookings
   const fetchBookings = async () => {
@@ -35,7 +36,7 @@ const MyBookings = () => {
     setError("");
     try {
       const token = localStorage.getItem("access");
-      const response = await axios.get(`${API_BASE}/bookings/`, {
+      const response = await axios.get(`${API_BASE}/api/users/bookings/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       // Filter for unique bookings (in case of duplicates)
@@ -62,7 +63,7 @@ const MyBookings = () => {
     setCancelLoading(bookingId);
     try {
       const token = localStorage.getItem("access");
-      await axios.post(`${API_BASE}/bookings/${bookingId}/cancel/`, 
+      await axios.post(`${API_BASE}/api/users/bookings/${bookingId}/cancel/`, 
         { reason: "User requested cancellation" },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -158,7 +159,7 @@ const MyBookings = () => {
                   <div className="relative h-48 bg-gray-200 overflow-hidden">
                     {booking.property_info.images[0] ? (
                       <img
-                        src={`http://localhost:8000${booking.property_info.images[0].image}`}
+                        src={`${API_BASE}${booking.property_info.images[0].image}`}
                         alt={booking.property_info.title}
                         className="w-full h-full object-cover"
                       />

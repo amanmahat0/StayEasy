@@ -4,6 +4,7 @@ import KYCStep1 from "./KYCStep1";
 import KYCStep2 from "./KYCStep2";
 import KYCStep3 from "./KYCStep3";
 import axios from "axios";
+import { API_BASE } from "../../config";
 
 // ✅ KYC Form Data Type
 export interface KYCFormData {
@@ -107,7 +108,7 @@ export default function KYCContainer() {
 
       // ✅ Send to Django API
       const response = await axios.post(
-        "http://localhost:8000/api/users/kyc/submit/",
+        `${API_BASE}/api/users/kyc/submit/`,
         submitData,
         {
           headers: {

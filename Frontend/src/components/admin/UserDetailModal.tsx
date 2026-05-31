@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import API from "../../services/api";
 import {
+import { API_BASE } from "../../config";
   adminWarnUser, adminSuspendUser, adminLiftSuspension,
   adminAddNote, adminGetModerationHistory,
 } from "../../services/api";
@@ -689,13 +690,13 @@ export default function UserDetailModal({ userId, userType, isOpen, onClose, onK
                                 KYC Document
                               </h4>
                               <a
-                                href={`http://127.0.0.1:8000${user.kyc.document_image}`}
+                                href={`${API_BASE}${user.kyc.document_image}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="block relative rounded-xl overflow-hidden border border-gray-200 bg-white hover:border-[#A989C8] transition-colors group"
                               >
                                 <img
-                                  src={`http://127.0.0.1:8000${user.kyc.document_image}`}
+                                  src={`${API_BASE}${user.kyc.document_image}`}
                                   alt="KYC Document"
                                   className="w-full h-48 object-contain bg-gray-100"
                                   onError={(e) => {

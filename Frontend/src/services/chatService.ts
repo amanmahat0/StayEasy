@@ -1,8 +1,9 @@
 import axios from "axios";
 import type { ConversationData, MessageData } from "../type";
+import { API_BASE } from "../config";
 
 const API = axios.create({
-  baseURL: "http://127.0.0.1:8000/api/users/",
+  baseURL: `${API_BASE}/api/users/`,
   headers: { "Content-Type": "application/json" },
 });
 

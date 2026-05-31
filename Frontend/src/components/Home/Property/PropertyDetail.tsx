@@ -31,6 +31,7 @@ import { canChat, toConversationView } from "../../../utils/chatUtils";
 import ConversationWindow from "../../Chat/ConversationWindow";
 import type { ConversationView } from "../../../type";
 import axios from "axios";
+import { API_BASE } from "../../../config";
 
 export default function PropertyDetails() {
   const navigate = useNavigate();
@@ -113,7 +114,7 @@ export default function PropertyDetails() {
   const imageUrl = currentImage?.image
     ? currentImage.image.startsWith("http")
       ? currentImage.image
-      : `http://127.0.0.1:8000${currentImage.image}`
+      : `${API_BASE}${currentImage.image}`
     : "/no-image.png";
 
   const nextImage = () => setCurrentImageIndex((prev) => (prev + 1) % images.length);
@@ -206,7 +207,7 @@ export default function PropertyDetails() {
 
       // Call the cancel booking API
       const response = await axios.post(
-        `http://127.0.0.1:8000/api/users/bookings/${property.booking_id}/cancel/`,
+        `${API_BASE}/api/users/bookings/${property.booking_id}/cancel/`,
         { reason: "User requested cancellation" },
         {
           headers: {
@@ -285,7 +286,7 @@ export default function PropertyDetails() {
                   <div className="flex gap-3 overflow-x-auto pb-2">
                     {images.map((img: any, idx: number) => (
                       <button key={idx} onClick={() => setCurrentImageIndex(idx)} className={`min-w-24 h-24 rounded-xl overflow-hidden flex-shrink-0 border-2 transition ${idx === currentImageIndex ? "border-[#A989C8] shadow-lg" : "border-gray-200 hover:border-[#A989C8]"}`}>
-                        <img src={img.image?.startsWith("http") ? img.image : `http://127.0.0.1:8000${img.image}`} alt={`${property.title} ${idx + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/no-image.png"; }} />
+                        <img src={img.image?.startsWith("http") ? img.image : `${API_BASE}${img.image}`} alt={`${property.title} ${idx + 1}`} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = "/no-image.png"; }} />
                       </button>
                     ))}
                   </div>

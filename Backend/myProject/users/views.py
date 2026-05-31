@@ -78,14 +78,18 @@ class RegisterView(generics.CreateAPIView):
         })
         plain_message = strip_tags(html_message)
 
-        send_mail(
-            "Your StayEasy verification code",
-            plain_message,
-            None,
-            [user.email],
-            fail_silently=False,
-            html_message=html_message,
-        )
+        try:
+            send_mail(
+                "Your StayEasy verification code",
+                plain_message,
+                None,
+                [user.email],
+                fail_silently=False,
+                html_message=html_message,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Verification email failed for {user.email}: {e}")
 
 
 # ----------------------

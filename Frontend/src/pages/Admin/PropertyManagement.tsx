@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Header } from '../../components/admin/Header';
 import { adminGetAllProperties, deleteProperty } from '../../services/api';
+import { API_BASE } from "../../config";
 
 interface PropertyData {
   id: number;
@@ -155,7 +156,7 @@ const PropertyManagement: React.FC = () => {
                     <div className="w-24 h-24 rounded-2xl bg-gray-100 overflow-hidden shrink-0">
                       {property.images && property.images.length > 0 ? (
                         <img 
-                          src={`http://127.0.0.1:8000${property.images[0].image}`}
+                          src={`${API_BASE}${property.images[0].image}`}
                           alt={property.title}
                           className="w-full h-full object-cover"
                         />
