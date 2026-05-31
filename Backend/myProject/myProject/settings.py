@@ -138,6 +138,8 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='StayEasy <noreply@stayeasy.com>')
 
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')
+
 # ===============================
 # ESEWA PAYMENT SETTINGS
 # ===============================

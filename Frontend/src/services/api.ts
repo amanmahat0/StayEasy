@@ -21,6 +21,18 @@ export const signupApi = (data: any) => API.post("register/", data);
 export const loginApi = (data: any) => API.post("login/", data);
 export const verifyEmailApi = (email: string, code: string) =>
   API.post("verify-email/", { email, code });
+export const forgotPasswordApi = (email: string) =>
+  API.post("forgot-password/", { email });
+export const resetPasswordApi = (data: { token?: string; password: string; password2: string }) =>
+  API.post("reset-password/", data);
+export const getRecentActivity = async () => {
+  try {
+    const response = await API.get("recent-activity/");
+    return response.data || [];
+  } catch (error) {
+    return [];
+  }
+};
 export const getProfile = async () => {
   try {
     const response = await API.get("profile/");

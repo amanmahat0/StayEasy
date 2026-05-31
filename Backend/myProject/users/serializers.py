@@ -953,6 +953,32 @@ class TenantSignSerializer(serializers.Serializer):
         return value
 
 
+# =====================================================
+# FORGOT / RESET PASSWORD SERIALIZERS
+# =====================================================
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        try:
+            user = User.objects.get(email=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("No account found with this email address.")
+        return value
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True, validators=[validate_password])
+    password2 = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data['password'] != data['password2']:
+            raise serializers.ValidationError({"password2": "Passwords do not match."})
+        return data
+
+
 class LandlordSignSerializer(serializers.Serializer):
     """Serializer for landlord signature submission"""
     signature = serializers.CharField(help_text="Base64 encoded signature image")

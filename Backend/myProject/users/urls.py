@@ -4,6 +4,9 @@ from .views import (
     RegisterView,
     VerifyEmailView,
     CustomTokenObtainPairView,
+    ForgotPasswordView,
+    ResetPasswordView,
+    RecentActivityView,
     ProfileView,
     LandlordRegisterView,
     LandlordLoginView,
@@ -90,11 +93,14 @@ urlpatterns = [
     # User Authentication Endpoints
     path('register/', RegisterView.as_view()),
     path('verify-email/', VerifyEmailView.as_view()),
+    path('forgot-password/', ForgotPasswordView.as_view()),
+    path('reset-password/', ResetPasswordView.as_view()),
     path('login/', CustomTokenObtainPairView.as_view()),
     path('refresh/', TokenRefreshView.as_view()),
 
     # User Profile Endpoints
     path('profile/', ProfileView.as_view()),
+    path('recent-activity/', RecentActivityView.as_view()),
     path('kyc/submit/', KYCSubmitView.as_view()),
     path('kyc/status/', KYCStatusView.as_view()),
     path('kyc/detail/', KYCDetailView.as_view()),

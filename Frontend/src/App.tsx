@@ -12,6 +12,8 @@ import Home from "./pages/Dashboard/Home";
 import Wishlist from "./components/Home/MyBooking/Wishlist"; 
 import Login from "./pages/Authentication/Login";
 import Signup from "./pages/Authentication/Signup";
+import ForgotPassword from "./pages/Authentication/ForgotPassword";
+import ResetPassword from "./pages/Authentication/ResetPassword";
 import VerifyEmailInfo from "./pages/Authentication/VerifyEmailInfo";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import Profile from "./pages/Profile/profile";
@@ -72,6 +74,8 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password/:token" element={<ResetPassword />} />
       <Route path="/about" element={<AboutPage />} />
       <Route path="/how-it-works" element={<HowItWorks />} />
       <Route path="/verify-email" element={<VerifyEmailInfo />} />

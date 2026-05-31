@@ -1,3 +1,5 @@
+import secrets
+
 from rest_framework import generics, permissions, views, status
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
@@ -39,6 +41,8 @@ from .serializers import (
     SuspensionSerializer,
     SuspensionCreateSerializer,
     ModerationActionSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer,
 )
 from .permissions import IsAdminUser
 from .services.esewa_service import EsewaPaymentService, create_esewa_payment_link
@@ -2328,3 +2332,156 @@ class AdminPropertyToggleVisibilityView(APIView):
             'property_id': property_obj.id,
             'available': property_obj.available,
         })
+
+
+# =====================================================
+# FORGOT / RESET PASSWORD
+# =====================================================
+
+class ForgotPasswordView(views.APIView):
+    """Send password reset link to user's email"""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data['email']
+        user = User.objects.get(email=email)
+        profile, _ = Profile.objects.get_or_create(user=user)
+
+        token = secrets.token_urlsafe(32)
+        profile.set_reset_token(token, minutes=60)
+
+        reset_url = f"{settings.FRONTEND_URL}/reset-password/{token}"
+
+        from django.template.loader import render_to_string
+        from django.utils.html import strip_tags
+
+        html_message = render_to_string('emails/reset_password.html', {
+            'user': user,
+            'reset_url': reset_url,
+        })
+        plain_message = strip_tags(html_message)
+
+        send_mail(
+            "Reset your StayEasy password",
+            plain_message,
+            None,
+            [email],
+            fail_silently=False,
+            html_message=html_message,
+        )
+
+        return Response({
+            'message': 'If an account with that email exists, a password reset link has been sent.',
+        }, status=status.HTTP_200_OK)
+
+
+class ResetPasswordView(views.APIView):
+    """Reset password using token"""
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        token = serializer.validated_data['token']
+        password = serializer.validated_data['password']
+
+        try:
+            profile = Profile.objects.get(password_reset_token=token)
+        except Profile.DoesNotExist:
+            return Response({'error': 'Invalid or expired reset token.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not profile.password_reset_expires or timezone.now() > profile.password_reset_expires:
+            profile.clear_reset_token()
+            return Response({'error': 'Reset token has expired. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = profile.user
+        user.set_password(password)
+        user.save()
+
+        profile.clear_reset_token()
+
+        return Response({
+            'message': 'Password has been reset successfully.',
+        }, status=status.HTTP_200_OK)
+
+
+# =====================================================
+# RECENT ACTIVITY FEED
+# =====================================================
+
+class RecentActivityView(views.APIView):
+    """Unified activity feed combining bookings, payments, favorites, and notifications"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        now = timezone.now()
+        activities = []
+
+        # Recent bookings
+        for b in Booking.objects.filter(user=user).order_by('-created_at')[:10]:
+            activities.append({
+                'type': 'booking',
+                'action': b.status,
+                'title': f"Booking {dict(Booking.STATUS_CHOICES).get(b.status, b.status)}",
+                'description': f"{b.property.title} — NPR {b.total_price}",
+                'timestamp': b.created_at.isoformat(),
+                'icon': 'CalendarCheck',
+                'color': 'blue' if b.status == 'pending' else 'green' if b.status in ('confirmed', 'completed') else 'red',
+                'entity_type': 'booking',
+                'entity_id': b.id,
+            })
+
+        # Recent payments (as tenant)
+        for p in Payment.objects.filter(tenant=user).order_by('-payment_date')[:10]:
+            activities.append({
+                'type': 'payment',
+                'action': p.status,
+                'title': f"Payment {dict(Payment.PAYMENT_STATUS).get(p.status, p.status)}",
+                'description': f"Booking #{p.booking.id} — NPR {p.amount}",
+                'timestamp': p.payment_date.isoformat(),
+                'icon': 'CreditCard',
+                'color': 'green' if p.status == 'completed' else 'red' if p.status == 'failed' else 'orange',
+                'entity_type': 'payment',
+                'entity_id': p.id,
+            })
+
+        # Recent bookings where user is landlord (property owner)
+        for b in Booking.objects.filter(property__owner=user).order_by('-created_at')[:10]:
+            activities.append({
+                'type': 'booking_request',
+                'action': b.status,
+                'title': f"{'New' if b.status == 'pending' else b.status.title()} Booking Request",
+                'description': f"{(b.user.get_full_name() or b.user.username)} — {b.property.title}",
+                'timestamp': b.created_at.isoformat(),
+                'icon': 'CalendarCheck',
+                'color': 'blue' if b.status == 'pending' else 'green' if b.status in ('confirmed', 'completed') else 'red',
+                'entity_type': 'booking',
+                'entity_id': b.id,
+            })
+
+        # Recent favorites
+        for f in Favorite.objects.filter(user=user).order_by('-created_at')[:10]:
+            activities.append({
+                'type': 'favorite',
+                'action': 'saved',
+                'title': 'Property Saved',
+                'description': f.title,
+                'timestamp': f.created_at.isoformat(),
+                'icon': 'Heart',
+                'color': 'orange',
+                'entity_type': 'property',
+                'entity_id': f.property.id,
+            })
+
+        # Sort by timestamp descending
+        activities.sort(key=lambda a: a['timestamp'], reverse=True)
+
+        # Limit to 20
+        activities = activities[:20]
+
+        return Response(activities, status=status.HTTP_200_OK)

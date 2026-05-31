@@ -12,6 +12,8 @@ import SignaturePad from "../../components/Agreements/SignaturePad";
 
 interface Agreement {
   id: number;
+  tenant: number;
+  landlord: number;
   status: string;
   agreement_content: string;
   monthly_rent: string;
@@ -89,8 +91,8 @@ export default function AgreementDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const isTenant = agreement && user && (agreement.tenant_name === `${user.first_name} ${user.last_name}`.trim() || (user.email && agreement.tenant_email === user.email));
-  const isLandlord = agreement && user && (agreement.landlord_name === `${user.first_name} ${user.last_name}`.trim() || (user.email && agreement.landlord_email === user.email));
+  const isTenant = agreement && user && (agreement.tenant === user.id);
+  const isLandlord = agreement && user && (agreement.landlord === user.id);
   const isAdmin = user?.role === "admin" || user?.is_superuser;
 
   const canSign = isTenant && agreement?.status === "pending_tenant";
