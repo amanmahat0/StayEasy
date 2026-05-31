@@ -433,7 +433,6 @@ class ProfileView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        # ✅ Ensure profile exists
         profile, _ = Profile.objects.get_or_create(user=request.user)
         return Response({
             "id": request.user.id,
@@ -444,7 +443,47 @@ class ProfileView(views.APIView):
             "role": "admin" if request.user.is_superuser or profile.role == "admin" else profile.role,
             "user_type": profile.user_type,
             "email_verified": profile.email_verified,
+            "phone": profile.phone,
+            "date_of_birth": profile.date_of_birth,
+            "address": profile.address,
+            "emergency_contact": profile.emergency_contact,
+            "profile_picture": f"/uploads/{profile.profile_picture.name}" if profile.profile_picture else None,
         })
+
+    def put(self, request):
+        profile, _ = Profile.objects.get_or_create(user=request.user)
+        data = request.data
+
+        first_name = data.get("first_name")
+        last_name = data.get("last_name")
+        if first_name:
+            request.user.first_name = first_name
+        if last_name:
+            request.user.last_name = last_name
+        request.user.save()
+
+        phone = data.get("phone")
+        if phone is not None:
+            profile.phone = phone
+
+        date_of_birth = data.get("date_of_birth")
+        if date_of_birth is not None:
+            profile.date_of_birth = date_of_birth or None
+
+        address = data.get("address")
+        if address is not None:
+            profile.address = address
+
+        emergency_contact = data.get("emergency_contact")
+        if emergency_contact is not None:
+            profile.emergency_contact = emergency_contact
+
+        profile_picture = request.FILES.get("profile_picture")
+        if profile_picture:
+            profile.profile_picture = profile_picture
+
+        profile.save()
+        return Response({"message": "Profile updated successfully"})
 
 
 # ----------------------
@@ -471,6 +510,34 @@ class KYCStatusView(APIView):
             kyc = request.user.kyc
             serializer = KYCStatusSerializer(kyc)
             return Response(serializer.data)
+        except KYC.DoesNotExist:
+            return Response({"status": "not_submitted"})
+
+
+# ----------------------
+# KYC DETAIL (own)
+# ----------------------
+class KYCDetailView(APIView):
+    """Return full KYC info for the logged-in user"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        try:
+            kyc = request.user.kyc
+            return Response({
+                "id": kyc.id,
+                "full_name": kyc.full_name,
+                "phone_number": kyc.phone_number,
+                "citizenship_number": kyc.citizenship_number,
+                "document_image": f"/uploads/{kyc.document_image.name}" if kyc.document_image else None,
+                "status": kyc.status,
+                "submitted_at": kyc.submitted_at,
+                "verified_by": {
+                    "id": kyc.verified_by.id,
+                    "name": f"{kyc.verified_by.first_name} {kyc.verified_by.last_name}",
+                } if kyc.verified_by else None,
+                "verified_at": kyc.verified_at,
+            })
         except KYC.DoesNotExist:
             return Response({"status": "not_submitted"})
 

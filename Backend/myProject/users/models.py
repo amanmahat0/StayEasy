@@ -54,6 +54,12 @@ class Profile(models.Model):
     role = models.CharField(max_length=10, choices=ROLES, default='user')
     email_verified = models.BooleanField(default=False)
 
+    profile_picture = models.ImageField(upload_to='profile_pictures/', blank=True, null=True)
+    phone = models.CharField(max_length=20, blank=True, null=True)
+    date_of_birth = models.DateField(blank=True, null=True)
+    address = models.TextField(blank=True, null=True)
+    emergency_contact = models.CharField(max_length=100, blank=True, null=True)
+
     password_reset_token = models.CharField(max_length=255, blank=True, null=True)
     password_reset_expires = models.DateTimeField(blank=True, null=True)
 

@@ -16,6 +16,7 @@ from .views import (
     LandlordPropertyBookingsView,
     KYCSubmitView,
     KYCStatusView,
+    KYCDetailView,
     PropertyCreateView,
     PropertyListView,
     PropertyDetailView,
@@ -80,6 +81,7 @@ urlpatterns = [
     path('profile/', ProfileView.as_view()),
     path('kyc/submit/', KYCSubmitView.as_view()),
     path('kyc/status/', KYCStatusView.as_view()),
+    path('kyc/detail/', KYCDetailView.as_view()),
     
     # =====================================================
     # LANDLORD AUTHENTICATION & MANAGEMENT ENDPOINTS

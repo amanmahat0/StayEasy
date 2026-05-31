@@ -31,6 +31,26 @@ export const getProfile = async () => {
   }
 };
 
+export const updateProfile = async (data: any) => {
+  try {
+    const response = await API.put("profile/", data);
+    return response.data;
+  } catch (error) {
+    console.error("Profile update error:", error);
+    throw error;
+  }
+};
+
+export const getKYCDetail = async () => {
+  try {
+    const response = await API.get("kyc/detail/");
+    return response.data;
+  } catch (error) {
+    console.error("KYC detail fetch error:", error);
+    return { status: "not_submitted" };
+  }
+};
+
 // ================= KYC API =================
 export const getKYCStatus = async () => {
   try {
