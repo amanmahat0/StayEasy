@@ -19,8 +19,8 @@ API.interceptors.request.use((config) => {
 // ================= AUTH APIs =================
 export const signupApi = (data: any) => API.post("register/", data);
 export const loginApi = (data: any) => API.post("login/", data);
-export const verifyEmailApi = (uid: string, token: string) =>
-  API.post("verify-email/", { uid, token });
+export const verifyEmailApi = (email: string, code: string) =>
+  API.post("verify-email/", { email, code });
 export const getProfile = async () => {
   try {
     const response = await API.get("profile/");

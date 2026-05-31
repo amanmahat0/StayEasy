@@ -60,8 +60,8 @@ const Signup: React.FC = () => {
         user_type: userType, // "tenant" or "owner"
       });
 
-      // Redirect to email verification page
-      navigate("/verify-email");
+      // Redirect to email verification page with email
+      navigate("/verify-email", { state: { email } });
 
     } catch (err: any) {
       const data = err?.response?.data;

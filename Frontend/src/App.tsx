@@ -13,7 +13,6 @@ import Wishlist from "./components/Home/MyBooking/Wishlist";
 import Login from "./pages/Authentication/Login";
 import Signup from "./pages/Authentication/Signup";
 import VerifyEmailInfo from "./pages/Authentication/VerifyEmailInfo";
-import VerifyEmailConfirm from "./pages/Authentication/VerifyEmailConfirm";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import Profile from "./pages/Profile/profile";
 import AboutPage from "./pages/AboutUs/AboutUs";
@@ -69,10 +68,6 @@ export default function App() {
       <Route path="/about" element={<AboutPage />} />
       <Route path="/how-it-works" element={<HowItWorks />} />
       <Route path="/verify-email" element={<VerifyEmailInfo />} />
-      <Route 
-        path="/verify-email-confirm/:uid/:token" 
-        element={<VerifyEmailConfirm />} 
-      />
 
       {/* ==========================================
           PROTECTED USER ROUTES

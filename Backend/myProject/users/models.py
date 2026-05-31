@@ -57,6 +57,19 @@ class Profile(models.Model):
     password_reset_token = models.CharField(max_length=255, blank=True, null=True)
     password_reset_expires = models.DateTimeField(blank=True, null=True)
 
+    email_verification_code = models.CharField(max_length=6, blank=True, null=True)
+    email_verification_expires = models.DateTimeField(blank=True, null=True)
+
+    def set_verification_code(self, code, minutes=10):
+        self.email_verification_code = code
+        self.email_verification_expires = timezone.now() + timedelta(minutes=minutes)
+        self.save()
+
+    def clear_verification_code(self):
+        self.email_verification_code = None
+        self.email_verification_expires = None
+        self.save()
+
     def set_reset_token(self, token, minutes=60):
         self.password_reset_token = token
         self.password_reset_expires = timezone.now() + timedelta(minutes=minutes)

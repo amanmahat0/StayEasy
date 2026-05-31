@@ -3,9 +3,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
-from django.contrib.auth.tokens import default_token_generator
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.utils.encoding import force_bytes, force_str
+
 from django.utils import timezone
 from django.core.mail import send_mail
 from django.db.models import Q
@@ -52,6 +50,7 @@ class RegisterView(generics.CreateAPIView):
 
     @transaction.atomic
     def perform_create(self, serializer):
+        import random
         from django.template.loader import render_to_string
         from django.utils.html import strip_tags
 
@@ -60,20 +59,17 @@ class RegisterView(generics.CreateAPIView):
         # ✅ Ensure profile exists
         profile, _ = Profile.objects.get_or_create(user=user)
         profile.email_verified = False
-        profile.save()
-
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = default_token_generator.make_token(user)
-        verify_link = f"http://localhost:5173/verify-email-confirm/{uid}/{token}"
+        code = f"{random.randint(100000, 999999)}"
+        profile.set_verification_code(code, minutes=10)
 
         html_message = render_to_string('emails/verify_email.html', {
             'user': user,
-            'verify_link': verify_link,
+            'verification_code': code,
         })
         plain_message = strip_tags(html_message)
 
         send_mail(
-            "Verify your email - StayEasy",
+            "Your StayEasy verification code",
             plain_message,
             None,
             [user.email],
@@ -91,23 +87,28 @@ class VerifyEmailView(views.APIView):
     def post(self, request):
         serializer = VerifyEmailSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        uid = serializer.validated_data["uid"]
-        token = serializer.validated_data["token"]
+        email = serializer.validated_data["email"]
+        code = serializer.validated_data["code"]
 
         try:
-            user_id = force_str(urlsafe_base64_decode(uid))
-            user = User.objects.get(pk=user_id)
-        except Exception:
-            return Response({"error": "Invalid verification link"}, status=400)
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "User with this email not found"}, status=400)
 
-        # ✅ Ensure profile exists
         profile, _ = Profile.objects.get_or_create(user=user)
 
-        if default_token_generator.check_token(user, token):
-            profile.email_verified = True
-            profile.save()
-            return Response({"message": "Email verified successfully"})
-        return Response({"error": "Invalid or expired token"}, status=400)
+        if profile.email_verified:
+            return Response({"message": "Email already verified"})
+
+        if profile.email_verification_code != code:
+            return Response({"error": "Invalid verification code"}, status=400)
+
+        if timezone.now() > profile.email_verification_expires:
+            return Response({"error": "Verification code has expired. Please request a new one."}, status=400)
+
+        profile.email_verified = True
+        profile.clear_verification_code()
+        return Response({"message": "Email verified successfully"})
 
 
 # =====================================================

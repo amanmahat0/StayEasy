@@ -169,8 +169,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 # VERIFY EMAIL SERIALIZER
 # =====================================================
 class VerifyEmailSerializer(serializers.Serializer):
-    uid = serializers.CharField()
-    token = serializers.CharField()
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6)
 
 
 # =====================================================
