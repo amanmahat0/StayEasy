@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Header } from "../../components/admin/Header";
-import { Users, Building2, Loader2, Search, Mail, Calendar, ShieldCheck, ShieldAlert } from "lucide-react";
+import UserDetailModal from "../../components/admin/UserDetailModal";
+import { Users, Building2, Loader2, Search, Mail, Calendar, ShieldCheck, ShieldAlert, ChevronRight } from "lucide-react";
 import API from "../../services/api";
 
 interface User {
@@ -26,6 +27,13 @@ const UserManagement = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  const openUserDetail = (id: number) => {
+    setSelectedUserId(id);
+    setModalOpen(true);
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -229,7 +237,8 @@ const UserManagement = () => {
             {filtered.map((u) => (
               <div
                 key={u.id}
-                className="group bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg hover:border-[#A989C8]/30 transition-all duration-200"
+                onClick={() => openUserDetail(u.id)}
+                className="group bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-lg hover:border-[#A989C8]/30 transition-all duration-200 cursor-pointer"
               >
                 <div className="flex items-start gap-5">
                   {/* Avatar */}
@@ -251,27 +260,30 @@ const UserManagement = () => {
                           <span className="text-gray-400">@{u.username}</span>
                         </p>
                       </div>
-                      {/* Status Badge */}
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 ${
-                          isVerified(u)
-                            ? "bg-green-50 text-green-700 border border-green-200"
-                            : "bg-yellow-50 text-yellow-700 border border-yellow-200"
-                        }`}
-                      >
-                        {isVerified(u) ? (
-                          <ShieldCheck size={13} />
-                        ) : (
-                          <ShieldAlert size={13} />
-                        )}
-                        {activeTab === "users"
-                          ? (isVerified(u) ? "Verified" : "Unverified")
-                          : (u.kyc_status === "approved" ? "KYC Verified"
-                            : u.kyc_status === "pending" ? "KYC Pending"
-                            : u.kyc_status === "not_submitted" ? "KYC Not Submitted"
-                            : "KYC Rejected")
-                        }
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {/* Status Badge */}
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 ${
+                            isVerified(u)
+                              ? "bg-green-50 text-green-700 border border-green-200"
+                              : "bg-yellow-50 text-yellow-700 border border-yellow-200"
+                          }`}
+                        >
+                          {isVerified(u) ? (
+                            <ShieldCheck size={13} />
+                          ) : (
+                            <ShieldAlert size={13} />
+                          )}
+                          {activeTab === "users"
+                            ? (isVerified(u) ? "Verified" : "Unverified")
+                            : (u.kyc_status === "approved" ? "KYC Verified"
+                              : u.kyc_status === "pending" ? "KYC Pending"
+                              : u.kyc_status === "not_submitted" ? "KYC Not Submitted"
+                              : "KYC Rejected")
+                          }
+                        </span>
+                        <ChevronRight size={16} className="text-gray-300 group-hover:text-[#A989C8] transition-colors shrink-0" />
+                      </div>
                     </div>
 
                     {/* Meta Row */}
@@ -329,6 +341,17 @@ const UserManagement = () => {
           </div>
         )}
       </div>
+
+      {/* User Detail Modal */}
+      {selectedUserId && (
+        <UserDetailModal
+          userId={selectedUserId}
+          userType={activeTab}
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          onKycUpdate={() => { if (activeTab === "landlords") fetchLandlords(); }}
+        />
+      )}
     </div>
   );
 };

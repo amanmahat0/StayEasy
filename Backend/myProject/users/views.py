@@ -1578,6 +1578,93 @@ class AdminLandlordListView(generics.ListAPIView):
 
 
 # ----------------------
+# ADMIN - USER DETAIL
+# ----------------------
+class AdminUserDetailView(views.APIView):
+    """Admin: Get full details of a user (tenant or landlord)"""
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+    def get(self, request, id):
+        is_admin = request.user.is_superuser or getattr(getattr(request.user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            user = User.objects.get(pk=id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        profile, _ = Profile.objects.get_or_create(user=user)
+        user_type = profile.user_type or 'tenant'
+        data = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'user_type': user_type,
+            'role': profile.role,
+            'email_verified': profile.email_verified,
+            'date_joined': user.date_joined,
+            'is_active': user.is_active,
+        }
+
+        # KYC info (relevant for landlords)
+        kyc = KYC.objects.filter(user=user).first()
+        if kyc:
+            data['kyc'] = {
+                'id': kyc.id,
+                'full_name': kyc.full_name,
+                'phone_number': kyc.phone_number,
+                'citizenship_number': kyc.citizenship_number,
+                'document_image': f"/uploads/{kyc.document_image.name}" if kyc.document_image else None,
+                'status': kyc.status,
+                'submitted_at': kyc.submitted_at,
+                'verified_by': {
+                    'id': kyc.verified_by.id,
+                    'name': f"{kyc.verified_by.first_name} {kyc.verified_by.last_name}",
+                    'email': kyc.verified_by.email,
+                } if kyc.verified_by else None,
+                'verified_at': kyc.verified_at,
+            }
+        else:
+            data['kyc'] = None
+
+        # Bookings for tenants
+        if user_type == 'tenant':
+            bookings = Booking.objects.filter(user=user).order_by('-created_at')
+            data['bookings_count'] = bookings.count()
+            data['bookings'] = [{
+                'id': b.id,
+                'property_title': b.property.title,
+                'property_id': b.property.id,
+                'check_in': b.check_in,
+                'check_out': b.check_out,
+                'total_price': str(b.total_price),
+                'status': b.status,
+                'payment_status': b.payment_status,
+                'created_at': b.created_at,
+            } for b in bookings]
+            # Current rented property (active booking with confirmed/processing status)
+            current = bookings.filter(status__in=['confirmed', 'processing']).first()
+            data['current_rental'] = {
+                'id': current.id,
+                'property_title': current.property.title,
+                'property_id': current.property.id,
+                'check_in': current.check_in,
+                'check_out': current.check_out,
+                'status': current.status,
+            } if current else None
+        else:
+            data['bookings_count'] = Booking.objects.filter(property__owner=user).count()
+            data['properties_count'] = user.properties.count()
+            data['bookings'] = None
+            data['current_rental'] = None
+
+        return Response(data)
+
+
+# ----------------------
 # FAVORITE - USER LIST
 # ----------------------
 class UserFavoriteListView(generics.ListAPIView):

@@ -42,6 +42,7 @@ from .views import (
     AdminBookingListView,
     AdminBookingUpdateStatusView,
     AdminUserListView,
+    AdminUserDetailView,
     AdminLandlordListView,
     UserFavoriteListView,
     FavoriteToggleView,
@@ -164,6 +165,7 @@ urlpatterns = [
     
     # Admin User Management
     path('admin/users/', AdminUserListView.as_view(), name='admin-user-list'),
+    path('admin/users/<int:id>/', AdminUserDetailView.as_view(), name='admin-user-detail'),
     path('admin/landlords/', AdminLandlordListView.as_view(), name='admin-landlord-list'),
     
     # Admin Booking Management
