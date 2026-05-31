@@ -27,6 +27,17 @@ interface Props {
   onMinimize?: () => void;
 }
 
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
 export default function ConversationWindow({
   conversation,
   currentUser,
@@ -42,6 +53,9 @@ export default function ConversationWindow({
   const [showMenu, setShowMenu] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [typing, setTyping] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const roomId = conversation.roomId || chatService.generateRoomId(currentUser.id, conversation.participantId);
@@ -97,6 +111,12 @@ export default function ConversationWindow({
       scrollToBottom();
     };
 
+    const handleTyping = (data: { userId: number; userName: string; isTyping: boolean }) => {
+      if (data.userId !== currentUser.id) {
+        setTyping(data.isTyping);
+      }
+    };
+
     socketService.onMessageReceived(handleMessage);
     socketService.onHistoryReceived((data) => {
       if (data.messages?.length) {
@@ -121,10 +141,12 @@ export default function ConversationWindow({
         scrollToBottom();
       }
     });
+    socketService.onTyping(handleTyping);
 
     return () => {
-      socketService.removeListener("receive-message");
+      socketService.removeListener("receive-message", handleMessage);
       socketService.removeListener("chat-history");
+      socketService.removeListener("user-typing-indicator", handleTyping as any);
       socketService.leaveRoom({ roomId, userId: currentUser.id, userName: displayName });
     };
   }, [conversation.id]);
@@ -188,11 +210,28 @@ export default function ConversationWindow({
     setUploading(false);
   };
 
+  const handleInputChange = (value: string) => {
+    setInput(value);
+    socketService.setTyping({
+      roomId,
+      userId: currentUser.id,
+      userName: displayName,
+      isTyping: true,
+    });
+    if (typingTimeout.current) clearTimeout(typingTimeout.current);
+    typingTimeout.current = setTimeout(() => {
+      socketService.setTyping({
+        roomId,
+        userId: currentUser.id,
+        userName: displayName,
+        isTyping: false,
+      });
+    }, 2000);
+  };
+
   const otherSender = (msg: MessageData): boolean => {
-    // Check FK fields first — these are definitive
     if (msg.sender_landlord) return msg.sender_landlord !== myLandlordId;
     if (msg.sender_user !== undefined && msg.sender_user !== null) return msg.sender_user !== currentUser.id;
-    // Fallback for socket messages where FK is null — use sender_type
     if (msg.sender_type === "landlord") return !myLandlordId;
     if (msg.sender_type === "user") return true;
     return true;
@@ -200,37 +239,73 @@ export default function ConversationWindow({
 
   const isOwn = (msg: MessageData): boolean => !otherSender(msg);
 
+  const groupMessagesByDate = (msgs: MessageData[]) => {
+    const groups: { date: string; messages: MessageData[] }[] = [];
+    let lastDate = "";
+    for (const msg of msgs) {
+      const dateKey = new Date(msg.created_at).toDateString();
+      if (dateKey !== lastDate) {
+        groups.push({ date: msg.created_at, messages: [msg] });
+        lastDate = dateKey;
+      } else {
+        groups[groups.length - 1].messages.push(msg);
+      }
+    }
+    return groups;
+  };
+
   const messageList = (
     <div className="flex-1 overflow-y-auto px-3 py-3 bg-gray-50 space-y-2">
-      {messages.map((msg) => {
-        const mine = isOwn(msg);
-        return (
-          <div key={msg.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
-            {!mine && msg.sender_name && (
-              <span className="text-[11px] text-gray-500 px-1 mb-0.5">{msg.sender_name}</span>
-            )}
-            <div
-              className={`px-3 py-2 rounded-lg max-w-xs sm:max-w-sm break-words ${
-                mine
-                  ? "bg-[#A989C8] text-white rounded-br-sm"
-                  : "bg-white border text-gray-800 rounded-bl-sm"
-              }`}
-            >
-              {msg.image_url ? (
-                <>
-                  <img src={msg.image_url} alt="chat-img" className="max-h-48 rounded mb-1 cursor-pointer" />
-                  {msg.caption && <p className="text-xs mt-1 opacity-90">{msg.caption}</p>}
-                </>
-              ) : (
-                <p className="text-sm">{msg.content}</p>
-              )}
-              <p className={`text-[10px] mt-1 ${mine ? "text-white/70" : "text-gray-400"}`}>
-                {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-              </p>
-            </div>
+      {groupMessagesByDate(messages).map((group) => (
+        <div key={group.date}>
+          <div className="flex justify-center my-2">
+            <span className="text-[10px] text-gray-400 bg-white px-3 py-1 rounded-full shadow-sm border">
+              {formatDate(group.date)}
+            </span>
           </div>
-        );
-      })}
+          {group.messages.map((msg) => {
+            const mine = isOwn(msg);
+            return (
+              <div key={msg.id} className={`flex flex-col ${mine ? "items-end" : "items-start"}`}>
+                {!mine && msg.sender_name && (
+                  <span className="text-[11px] text-gray-500 px-1 mb-0.5">{msg.sender_name}</span>
+                )}
+                <div
+                  className={`px-3 py-2 rounded-lg max-w-xs sm:max-w-sm break-words ${
+                    mine
+                      ? "bg-[#A989C8] text-white rounded-br-sm"
+                      : "bg-white border text-gray-800 rounded-bl-sm"
+                  }`}
+                >
+                  {msg.image_url ? (
+                    <>
+                      <img
+                        src={msg.image_url}
+                        alt="chat-img"
+                        className="max-h-48 rounded mb-1 cursor-pointer hover:opacity-90 transition"
+                        onClick={() => setPreviewImage(msg.image_url!)}
+                      />
+                      {msg.caption && <p className="text-xs mt-1 opacity-90">{msg.caption}</p>}
+                    </>
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  )}
+                  <p className={`text-[10px] mt-1 ${mine ? "text-white/70" : "text-gray-400"}`}>
+                    {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      {typing && (
+        <div className="flex items-start">
+          <div className="px-4 py-2 rounded-lg bg-white border text-gray-500 text-sm italic">
+            typing...
+          </div>
+        </div>
+      )}
       <div ref={messagesEndRef} />
     </div>
   );
@@ -265,7 +340,7 @@ export default function ConversationWindow({
       </div>
       <input
         value={input}
-        onChange={(e) => setInput(e.target.value)}
+        onChange={(e) => handleInputChange(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Type a message..."
         className="flex-1 border rounded-full px-4 py-2 text-sm outline-none focus:border-[#A989C8]"
@@ -300,73 +375,65 @@ export default function ConversationWindow({
     </div>
   );
 
-  if (inline) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="px-4 py-3 bg-[#A989C8] text-white flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <button onClick={onClose} className="md:hidden p-1.5 hover:bg-white/20 rounded">
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm shrink-0">
-              {conversation.participantName.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-semibold text-sm truncate">{conversation.participantName}</h2>
-              <p className="text-xs opacity-80">{conversation.isOnline ? "Online" : "Offline"}</p>
-            </div>
+  const chatContent = (
+    <>
+      <div className="px-4 py-3 bg-[#A989C8] text-white flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <button onClick={onClose} className="md:hidden p-1.5 hover:bg-white/20 rounded">
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm shrink-0">
+            {conversation.participantName.charAt(0).toUpperCase()}
           </div>
-          {menuDropdown}
+          <div className="min-w-0">
+            <h2 className="font-semibold text-sm truncate">{conversation.participantName}</h2>
+            <p className="text-xs opacity-80">
+              {typing ? "typing..." : conversation.isOnline ? "Online" : "Offline"}
+            </p>
+          </div>
         </div>
-        {messageList}
-        {inputBar}
+        {menuDropdown}
       </div>
-    );
-  }
+      {messageList}
+      {inputBar}
+    </>
+  );
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 md:bg-black/10"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="w-full h-full md:w-[480px] md:h-[600px] md:rounded-xl md:shadow-2xl bg-white flex flex-col overflow-hidden">
-        <div className="px-4 py-3 bg-[#A989C8] text-white flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <button onClick={onClose} className="md:hidden">
-              <X className="w-5 h-5" />
-            </button>
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm shrink-0">
-              {conversation.participantName.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <h2 className="font-semibold text-sm truncate">{conversation.participantName}</h2>
-              <p className="text-xs opacity-80">{conversation.isOnline ? "Online" : "Offline"}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={() => onMinimize?.()}
-              className="p-1.5 hover:bg-white/20 rounded"
-              title="Minimize"
-            >
-              <Minimize2 className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => navigate("/chat", { state: { conversationId: Number(conversation.id) } })}
-              className="p-1.5 hover:bg-white/20 rounded"
-              title="Maximize"
-            >
-              <Maximize2 className="w-4 h-4" />
-            </button>
-            {menuDropdown}
-            <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded">
-              <X className="w-4 h-4" />
-            </button>
+    <>
+      {inline ? (
+        <div className="flex flex-col h-full">{chatContent}</div>
+      ) : (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 md:bg-black/10"
+          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
+          <div className="w-full h-full md:w-[480px] md:h-[600px] md:rounded-xl md:shadow-2xl bg-white flex flex-col overflow-hidden">
+            {chatContent}
           </div>
         </div>
-        {messageList}
-        {inputBar}
-      </div>
-    </div>
+      )}
+
+      {/* Image preview lightbox */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+        >
+          <button
+            onClick={() => setPreviewImage(null)}
+            className="absolute top-4 right-4 text-white p-2 hover:bg-white/20 rounded-full"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={previewImage}
+            alt="preview"
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+    </>
   );
 }

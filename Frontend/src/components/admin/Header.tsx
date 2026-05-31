@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Bell, LogOut, Settings, ChevronDown, Home } from 'lucide-react';
+import { Bell, LogOut, Settings, ChevronDown, Home, Menu, X } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from "../../context/AuthContext";
 
 export const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const { logout, user } = useAuth();
   const navigate = useNavigate();
 
@@ -18,7 +19,7 @@ export const Header: React.FC = () => {
     : "AD";
 
   return (
-    <header className="w-full bg-white border-b border-gray-100 px-6 py-3 sticky top-0 z-50">
+    <header className="w-full bg-white border-b border-gray-100 px-4 sm:px-6 py-3 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto flex items-center justify-between h-16 relative">
         
         {/* Left: Brand */}
@@ -34,8 +35,17 @@ export const Header: React.FC = () => {
           <span className="text-[11px] font-bold text-[#A989C8] uppercase tracking-[0.2em]">Admin Panel</span>
         </div>
 
-        {/* Right: User Actions */}
-        <div className="flex items-center gap-4">
+        {/* Mobile Hamburger */}
+        <button
+          onClick={() => setIsMobileNavOpen(!isMobileNavOpen)}
+          className="md:hidden p-2 text-gray-500 hover:text-[#A989C8] transition-colors"
+          aria-label="Toggle navigation"
+        >
+          {isMobileNavOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+
+        {/* Right: User Actions (hidden on mobile when nav is open) */}
+        <div className={`items-center gap-4 ${isMobileNavOpen ? 'hidden' : 'flex'}`}>
           <button className="relative p-2 text-gray-400 hover:text-[#A989C8]">
             <Bell size={22} />
             <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 border-2 border-white rounded-full"></span>
@@ -63,6 +73,39 @@ export const Header: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Mobile Navigation Drawer */}
+      {isMobileNavOpen && (
+        <div className="md:hidden border-t border-gray-100 mt-3 pt-3 pb-4 space-y-2">
+          <Link
+            to="/admin"
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+            onClick={() => setIsMobileNavOpen(false)}
+          >
+            Dashboard
+          </Link>
+          <Link
+            to="/admin/agreements"
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+            onClick={() => setIsMobileNavOpen(false)}
+          >
+            Agreements
+          </Link>
+          <Link
+            to="/admin/settings"
+            className="block px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 rounded-lg transition-colors"
+            onClick={() => setIsMobileNavOpen(false)}
+          >
+            Settings
+          </Link>
+          <button
+            onClick={() => { handleLogout(); setIsMobileNavOpen(false); }}
+            className="w-full text-left px-3 py-2.5 text-sm font-medium text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            Logout
+          </button>
+        </div>
+      )}
     </header>
   );
 };

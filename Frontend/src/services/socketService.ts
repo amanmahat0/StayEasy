@@ -53,8 +53,12 @@ class SocketService {
   private socket: Socket | null = null;
 
   connect() {
-    if (this.socket?.connected) {
-      return this.socket;
+    if (this.socket) {
+      if (this.socket.connected) return this.socket;
+      if (!this.socket.connected) {
+        this.socket.connect();
+        return this.socket;
+      }
     }
 
     this.socket = io(SOCKET_URL, {
@@ -73,8 +77,10 @@ class SocketService {
       console.log("❌ Socket disconnected");
     });
 
-    this.socket.on("connect_error", () => {
-      console.error("🔴 Connection error");
+    this.socket.on("connect_error", (err) => {
+      if (!this.socket?.connected) {
+        console.warn("🟡 Socket reconnect attempt...");
+      }
     });
 
     return this.socket;
@@ -86,8 +92,8 @@ class SocketService {
   }
 
   joinUserRoom(userId: number) {
-    if (!this.socket) this.connect();
-    this.socket?.emit("join-user-room", { userId });
+    const sock = this.connect();
+    sock?.emit("join-user-room", { userId });
   }
 
   sendMessage(data: SendMessageData) {
@@ -130,37 +136,39 @@ class SocketService {
   }
 
   onMessageReceived(callback: (msg: MessagePayload) => void) {
-    this.socket?.off("receive-message");
     this.socket?.on("receive-message", callback);
   }
 
   onImageReceived(callback: (msg: MessagePayload) => void) {
-    this.socket?.off("receive-image");
     this.socket?.on("receive-image", callback);
   }
 
   onHistoryReceived(callback: (data: { messages: MessagePayload[] }) => void) {
-    this.socket?.off("chat-history");
     this.socket?.on("chat-history", callback);
   }
 
   onRoomJoined(callback: (data: { roomId: string }) => void) {
-    this.socket?.off("room-joined");
     this.socket?.on("room-joined", callback);
   }
 
   onError(callback: (err: { message: string }) => void) {
-    this.socket?.off("error");
     this.socket?.on("error", callback);
   }
 
   onNewNotification(callback: (msg: MessagePayload) => void) {
-    this.socket?.off("new-notification");
     this.socket?.on("new-notification", callback);
   }
 
-  removeListener(event: string) {
-    this.socket?.off(event);
+  onTyping(callback: (data: { userId: number; userName: string; isTyping: boolean }) => void) {
+    this.socket?.on("user-typing-indicator", callback);
+  }
+
+  removeListener(event: string, callback?: Function) {
+    if (callback) {
+      this.socket?.off(event, callback as any);
+    } else {
+      this.socket?.off(event);
+    }
   }
 
   removeAllListeners() {

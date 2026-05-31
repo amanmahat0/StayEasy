@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { FileText } from "lucide-react";
 
 const QuickActions = () => {
   const navigate = useNavigate();
@@ -35,6 +36,13 @@ const QuickActions = () => {
           className="w-full border py-2 rounded-lg text-sm text-red-600 border-red-200 hover:bg-red-50"
         >
           Refunds
+        </button>
+
+        <button
+          onClick={() => navigate("/landlord/agreements")}
+          className="w-full border py-2 rounded-lg text-sm flex items-center justify-center gap-2"
+        >
+          <FileText className="w-4 h-4" /> Agreements
         </button>
 
         {/* ✅ Navigate to KYC page */}

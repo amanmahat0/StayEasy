@@ -101,6 +101,18 @@ class NotificationService {
         return { icon: '💳', color: 'text-green-600', bgColor: 'bg-green-50' };
       case 'payment_failed':
         return { icon: '⚠️', color: 'text-red-600', bgColor: 'bg-red-50' };
+      case 'admin_action':
+        return { icon: '📢', color: 'text-yellow-600', bgColor: 'bg-yellow-50' };
+      case 'agreement_created':
+        return { icon: '📄', color: 'text-blue-600', bgColor: 'bg-blue-50' };
+      case 'agreement_tenant_signed':
+        return { icon: '✍️', color: 'text-purple-600', bgColor: 'bg-purple-50' };
+      case 'agreement_landlord_signed':
+        return { icon: '✍️', color: 'text-green-600', bgColor: 'bg-green-50' };
+      case 'agreement_activated':
+        return { icon: '✅', color: 'text-green-600', bgColor: 'bg-green-50' };
+      case 'agreement_expiring':
+        return { icon: '⏰', color: 'text-orange-600', bgColor: 'bg-orange-50' };
       default:
         return { icon: '📬', color: 'text-gray-600', bgColor: 'bg-gray-50' };
     }

@@ -274,7 +274,7 @@ const AddProperty = () => {
       )}
 
       {/* 1. Navigation Bar */}
-      <div className="bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-50">
+      <div className="bg-white border-b border-gray-100 px-4 sm:px-6 py-4 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2 font-bold text-xl text-gray-800">
             <div className="bg-[#A87DC2] p-1.5 rounded-lg text-white">
@@ -291,20 +291,20 @@ const AddProperty = () => {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-6 py-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
         {/* 2. Header Title */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{id ? 'Edit Property' : 'Add New Property'}</h1>
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mb-2">{id ? 'Edit Property' : 'Add New Property'}</h1>
           <p className="text-gray-500">{id ? 'Update your property details' : 'List your property and reach thousands of verified tenants'}</p>
         </div>
 
         {/* 3. Stepper Progress Bar */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
+        <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-gray-100 mb-6">
           <Stepper currentStep={currentStep} />
         </div>
 
         {/* 4. Main Form Card */}
-        <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 mb-8 min-h-[400px]">
+        <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-sm border border-gray-100 mb-8 min-h-[400px]">
           {loading ? <div className="text-center text-gray-500">Loading property...</div> : renderStep()}
         </div>
 
@@ -316,11 +316,11 @@ const AddProperty = () => {
         )}
 
         {/* 5. Footer Buttons */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
           <button
             onClick={handlePrev}
             disabled={currentStep === 1}
-            className={`px-8 py-3 rounded-xl font-semibold text-sm transition-colors ${
+            className={`w-full sm:w-auto px-8 py-3 rounded-xl font-semibold text-sm transition-colors ${
               currentStep === 1 
               ? 'bg-gray-100 text-gray-300 cursor-not-allowed' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -331,7 +331,7 @@ const AddProperty = () => {
           
           <button
             onClick={currentStep === 5 ? handleSubmit : handleNext}
-            className={`px-8 py-3 text-white rounded-xl font-semibold text-sm shadow-md transition-all transform active:scale-95
+            className={`w-full sm:w-auto px-8 py-3 text-white rounded-xl font-semibold text-sm shadow-md transition-all transform active:scale-95
               bg-[#A87DC2] hover:opacity-90 shadow-[#A87DC2]/30`}
           >
             {currentStep === 5 ? (id ? 'Update Property' : 'Submit Property') : 'Next Step'}

@@ -32,6 +32,13 @@ import PaymentSuccess from "./pages/Properties/PaymentSuccess";
 import PaymentFailed from "./pages/Properties/PaymentFailed";
 import Chat from "./pages/Chat/Chat";
 
+// --- AGREEMENT FEATURES ---
+import AgreementDetail from "./pages/Agreements/AgreementDetail";
+import AgreementList from "./pages/Agreements/AgreementList";
+import LandlordAgreements from "./pages/Agreements/LandlordAgreements";
+import AdminAgreements from "./pages/Agreements/AdminAgreements";
+import AdminAgreementDetail from "./pages/Agreements/AdminAgreementDetail";
+
 // --- 3. BOOKING FEATURES ---
 import Booking from "./components/Home/Booking/Booking";
 import MyBooking from "./components/Home/MyBooking/MyBooking";
@@ -94,6 +101,9 @@ export default function App() {
   <Route path="/add-property" element={<ProtectedRoute><AddProperty /></ProtectedRoute>} />
   <Route path="/add-property/:id" element={<ProtectedRoute><AddProperty /></ProtectedRoute>} />
       <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+      <Route path="/agreements" element={<ProtectedRoute><AgreementList /></ProtectedRoute>} />
+      <Route path="/agreements/:id" element={<ProtectedRoute><AgreementDetail /></ProtectedRoute>} />
+      <Route path="/landlord/agreements" element={<ProtectedRoute><LandlordAgreements /></ProtectedRoute>} />
 
       {/* ==========================================
           ADMIN MANAGEMENT ROUTES
@@ -125,7 +135,16 @@ export default function App() {
         element={<RoleBasedRoute allowedRoles={['admin']}><BookingManagement /></RoleBasedRoute>} 
       />
 
-      {/* ==========================================
+      <Route 
+        path="/admin/agreements" 
+        element={<RoleBasedRoute allowedRoles={['admin']}><AdminAgreements /></RoleBasedRoute>} 
+      />
+      <Route 
+        path="/admin/agreements/:id" 
+        element={<RoleBasedRoute allowedRoles={['admin']}><AdminAgreementDetail /></RoleBasedRoute>} 
+      />
+
+      {/* ===========================================
           FALLBACK ROUTE (404 Handling)
           ========================================== */}
       <Route path="*" element={<Navigate to="/" />} />

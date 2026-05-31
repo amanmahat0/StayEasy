@@ -402,3 +402,152 @@ export const trackPropertyView = async (propertyId: number) => {
 };
 
 export default API;
+
+// ================= MODERATION APIs =================
+export const getSuspensionStatus = async () => {
+  try {
+    const response = await API.get("suspension-status/");
+    return response.data;
+  } catch (error) {
+    return { is_suspended: false, suspension: null };
+  }
+};
+
+export const getUserWarnings = async () => {
+  try {
+    const response = await API.get("warnings/");
+    return response.data;
+  } catch (error) {
+    return { count: 0, results: [] };
+  }
+};
+
+export const markWarningRead = async (warningId: number) => {
+  try {
+    const response = await API.post(`warnings/${warningId}/mark-read/`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// Admin moderation APIs
+export const adminWarnUser = async (userId: number, data: { reason: string; custom_reason?: string; message: string }) => {
+  try {
+    const response = await API.post(`admin/users/${userId}/warn/`, data);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const adminSuspendUser = async (userId: number, data: { reason: string; duration: string }) => {
+  try {
+    const response = await API.post(`admin/users/${userId}/suspend/`, data);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const adminLiftSuspension = async (suspensionId: number) => {
+  try {
+    const response = await API.post(`admin/suspensions/${suspensionId}/lift/`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const adminAddNote = async (userId: number, note: string) => {
+  try {
+    const response = await API.post(`admin/users/${userId}/note/`, { note });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const adminGetModerationHistory = async (userId: number) => {
+  try {
+    const response = await API.get(`admin/users/${userId}/moderation-history/`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const adminTogglePropertyVisibility = async (propertyId: number, hide: boolean, reason?: string) => {
+  try {
+    const response = await API.post(`admin/properties/${propertyId}/toggle-visibility/`, { hide, reason });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// =====================================================
+// RENTAL AGREEMENT APIS
+// =====================================================
+
+export const getAgreements = async () => {
+  try {
+    const response = await API.get('agreements/');
+    return response.data.results || response.data || [];
+  } catch (error) {
+    return [];
+  }
+};
+
+export const getAgreementDetail = async (id: number) => {
+  try {
+    const response = await API.get(`agreements/${id}/`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const tenantSignAgreement = async (agreementId: number, signature: string, ipAddress?: string, deviceInfo?: string) => {
+  try {
+    const response = await API.post(`agreements/${agreementId}/sign-tenant/`, {
+      signature,
+      ip_address: ipAddress || '',
+      device_info: deviceInfo || '',
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const landlordSignAgreement = async (agreementId: number, signature: string, ipAddress?: string, deviceInfo?: string) => {
+  try {
+    const response = await API.post(`agreements/${agreementId}/sign-landlord/`, {
+      signature,
+      ip_address: ipAddress || '',
+      device_info: deviceInfo || '',
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const downloadAgreementPDF = async (agreementId: number) => {
+  try {
+    const response = await API.get(`agreements/${agreementId}/pdf/`, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `rental_agreement_${agreementId}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    return true;
+  } catch (error) {
+    console.error('Failed to download PDF:', error);
+    return false;
+  }
+};

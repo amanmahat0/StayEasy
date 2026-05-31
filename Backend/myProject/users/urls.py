@@ -45,6 +45,15 @@ from .views import (
     AdminUserListView,
     AdminUserDetailView,
     AdminLandlordListView,
+    AdminWarnUserView,
+    AdminSuspendUserView,
+    AdminLiftSuspensionView,
+    AdminAddNoteView,
+    AdminModerationHistoryView,
+    AdminPropertyToggleVisibilityView,
+    CheckSuspensionStatusView,
+    UserWarningListView,
+    MarkWarningReadView,
     UserFavoriteListView,
     FavoriteToggleView,
     ViewedPropertyListView,
@@ -55,6 +64,13 @@ from .notification_views import (
     NotificationDetailView,
     NotificationUnreadCountView,
     MarkAllNotificationsReadView,
+)
+from .agreement_views import (
+    AgreementDetailView,
+    AgreementListView,
+    TenantSignAgreementView,
+    LandlordSignAgreementView,
+    AgreementPDFView,
 )
 from .chat_views import (
     UserChatListView,
@@ -175,10 +191,35 @@ urlpatterns = [
     path('admin/bookings/<int:id>/update-status/', AdminBookingUpdateStatusView.as_view(), name='admin-booking-update-status'),
     
     # =====================================================
+    # MODERATION ENDPOINTS
+    # =====================================================
+    # Admin moderation actions
+    path('admin/users/<int:user_id>/warn/', AdminWarnUserView.as_view(), name='admin-warn-user'),
+    path('admin/users/<int:user_id>/suspend/', AdminSuspendUserView.as_view(), name='admin-suspend-user'),
+    path('admin/suspensions/<int:suspension_id>/lift/', AdminLiftSuspensionView.as_view(), name='admin-lift-suspension'),
+    path('admin/users/<int:user_id>/note/', AdminAddNoteView.as_view(), name='admin-add-note'),
+    path('admin/users/<int:user_id>/moderation-history/', AdminModerationHistoryView.as_view(), name='admin-moderation-history'),
+    path('admin/properties/<int:property_id>/toggle-visibility/', AdminPropertyToggleVisibilityView.as_view(), name='admin-property-toggle-visibility'),
+    
+    # User-facing moderation endpoints
+    path('suspension-status/', CheckSuspensionStatusView.as_view(), name='suspension-status'),
+    path('warnings/', UserWarningListView.as_view(), name='user-warning-list'),
+    path('warnings/<int:warning_id>/mark-read/', MarkWarningReadView.as_view(), name='warning-mark-read'),
+    
+    # =====================================================
     # NOTIFICATION ENDPOINTS
     # =====================================================
     path('notifications/', NotificationListView.as_view(), name='notification-list'),
     path('notifications/<int:pk>/', NotificationDetailView.as_view(), name='notification-detail'),
     path('notifications/unread-count/', NotificationUnreadCountView.as_view(), name='notification-unread-count'),
     path('notifications/mark-all-read/', MarkAllNotificationsReadView.as_view(), name='notification-mark-all-read'),
+
+    # =====================================================
+    # RENTAL AGREEMENT ENDPOINTS
+    # =====================================================
+    path('agreements/', AgreementListView.as_view(), name='agreement-list'),
+    path('agreements/<int:pk>/', AgreementDetailView.as_view(), name='agreement-detail'),
+    path('agreements/<int:agreement_id>/sign-tenant/', TenantSignAgreementView.as_view(), name='agreement-sign-tenant'),
+    path('agreements/<int:agreement_id>/sign-landlord/', LandlordSignAgreementView.as_view(), name='agreement-sign-landlord'),
+    path('agreements/<int:agreement_id>/pdf/', AgreementPDFView.as_view(), name='agreement-pdf'),
 ]

@@ -28,7 +28,7 @@ const Step1Type: React.FC<Props> = ({ formData, setFormData }) => {
             <button
               key={item.id}
               onClick={() => setFormData({ ...formData, propertyType: item.id })}
-              className={`flex flex-col items-start p-6 rounded-2xl border-2 transition-all text-left
+                className={`flex flex-col items-start p-4 sm:p-6 rounded-2xl border-2 transition-all text-left
                 ${isSelected 
                   ? "border-[#A87DC2] bg-[#A87DC2]/5 ring-1 ring-[#A87DC2]" 
                   : "border-gray-200 hover:border-[#A87DC2]/50"}`}

@@ -11,7 +11,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import (
     Profile, KYC, Property, PropertyImage, Booking, Favorite, ViewedProperty, LandlordUser,
-    CancellationPolicy, Payment, Refund, Cancellation, Notification
+    CancellationPolicy, Payment, Refund, Cancellation, Notification,
+    Warning, Suspension, ModerationAction, RentalAgreement,
 )
 from .serializers import (
     RegisterSerializer,
@@ -33,6 +34,11 @@ from .serializers import (
     LandlordRegisterSerializer,
     LandlordLoginSerializer,
     LandlordSerializer,
+    WarningSerializer,
+    WarningCreateSerializer,
+    SuspensionSerializer,
+    SuspensionCreateSerializer,
+    ModerationActionSerializer,
 )
 from .permissions import IsAdminUser
 from .services.esewa_service import EsewaPaymentService, create_esewa_payment_link
@@ -233,6 +239,16 @@ class LandlordPropertyCreateView(generics.CreateAPIView):
         return PropertySerializer
 
     def perform_create(self, serializer):
+        # Check if user is suspended
+        user_obj = getattr(self.request, 'user', None)
+        if user_obj and user_obj.is_authenticated:
+            active_suspension = Suspension.objects.filter(user=user_obj, is_active=True).first()
+            if active_suspension:
+                raise ValidationError({
+                    "error": "Your account is suspended. You cannot list properties.",
+                    "suspension": SuspensionSerializer(active_suspension).data,
+                })
+
         # Try to get landlord from JWT payload, fallback to authenticated user, fallback to email match
         payload = getattr(getattr(self.request, 'auth', None), 'payload', None)
         landlord = None
@@ -886,6 +902,14 @@ class BookingCreateView(generics.CreateAPIView):
 
     def create(self, request, *args, **kwargs):
         """Override create to provide better error messages"""
+        # Check if user is suspended
+        active_suspension = Suspension.objects.filter(user=request.user, is_active=True).first()
+        if active_suspension:
+            return Response({
+                "error": "Your account is suspended. You cannot create bookings.",
+                "suspension": SuspensionSerializer(active_suspension).data,
+            }, status=status.HTTP_403_FORBIDDEN)
+
         try:
             return super().create(request, *args, **kwargs)
         except ValidationError as e:
@@ -1208,6 +1232,78 @@ class VerifyEsewaPaymentView(views.APIView):
             booking.payment_method = 'esewa'
             booking.status = 'confirmed'
             booking.save()
+
+            # Create or update Payment record
+            payment, _ = Payment.objects.get_or_create(
+                booking=booking,
+                defaults={
+                    'tenant': request.user,
+                    'amount': booking.total_price,
+                    'status': 'completed',
+                    'payment_method': 'esewa',
+                    'transaction_id': response_data.get('oid'),
+                }
+            )
+
+            # Auto-generate Rental Agreement
+            try:
+                from .agreement_views import generate_agreement_content
+                property_obj = booking.property
+                landlord_user = property_obj.owner
+                tenant_user = request.user
+
+                # Get profile info for snapshots
+                tenant_profile = getattr(tenant_user, 'profile', None)
+                landlord_profile = getattr(landlord_user, 'profile', None)
+                tenant_kyc = KYC.objects.filter(user=tenant_user).first()
+                landlord_kyc = KYC.objects.filter(user=landlord_user).first()
+
+                # Calculate lease duration
+                duration_days = (booking.check_out - booking.check_in).days
+                duration_months = max(1, round(duration_days / 30))
+
+                # Generate agreement content
+                agreement_content = generate_agreement_content(
+                    booking, property_obj, tenant_user, landlord_user, payment
+                )
+
+                agreement = RentalAgreement.objects.create(
+                    booking=booking,
+                    property=property_obj,
+                    tenant=tenant_user,
+                    landlord=landlord_user,
+                    status='pending_tenant',
+                    agreement_content=agreement_content,
+                    monthly_rent=property_obj.price,
+                    security_deposit=property_obj.security_deposit or 0,
+                    lease_duration_months=duration_months,
+                    tenant_name=f"{tenant_user.first_name} {tenant_user.last_name}".strip() or tenant_user.username,
+                    tenant_email=tenant_user.email,
+                    tenant_phone=tenant_profile.phone if tenant_profile else '',
+                    tenant_citizenship=tenant_kyc.citizenship_number if tenant_kyc else '',
+                    landlord_name=f"{landlord_user.first_name} {landlord_user.last_name}".strip() or landlord_user.username,
+                    landlord_email=landlord_user.email,
+                    landlord_phone=landlord_profile.phone if landlord_profile else '',
+                    landlord_kyc_verified=landlord_kyc.status == 'approved' if landlord_kyc else False,
+                    property_name=property_obj.title,
+                    property_address=f"{property_obj.address}, {property_obj.city}",
+                    property_type=dict(Property.PROPERTY_TYPES).get(property_obj.property_type, property_obj.property_type),
+                    transaction_id=payment.transaction_id or response_data.get('oid', ''),
+                    payment_date=payment.payment_date if payment else timezone.now(),
+                    amount_paid=payment.amount or booking.total_price,
+                )
+
+                # Notify tenant
+                Notification.objects.create(
+                    recipient=tenant_user,
+                    notification_type='agreement_created',
+                    title='Rental Agreement Ready',
+                    message=f"Your rental agreement for {property_obj.title} has been generated. Please review and sign.",
+                    related_entity_type='agreement',
+                    related_entity_id=agreement.id,
+                )
+            except Exception as e:
+                print(f"Agreement generation error (non-fatal): {e}")
             
             return Response({
                 'success': True,
@@ -1728,6 +1824,22 @@ class AdminUserDetailView(views.APIView):
             data['bookings'] = None
             data['current_rental'] = None
 
+        # Moderation info
+        warnings_qs = Warning.objects.filter(user=user)
+        suspensions_qs = Suspension.objects.filter(user=user)
+        data['moderation'] = {
+            'warnings_count': warnings_qs.count(),
+            'active_warnings_count': warnings_qs.filter(is_read=False).count(),
+            'suspensions_count': suspensions_qs.count(),
+            'active_suspension': SuspensionSerializer(
+                suspensions_qs.filter(is_active=True).first()
+            ).data if suspensions_qs.filter(is_active=True).exists() else None,
+            'recent_warnings': WarningSerializer(warnings_qs[:5], many=True).data,
+            'recent_actions': ModerationActionSerializer(
+                ModerationAction.objects.filter(user=user)[:10], many=True
+            ).data,
+        }
+
         return Response(data)
 
 
@@ -1850,3 +1962,369 @@ class ViewPropertyView(APIView):
         
         serializer = ViewedPropertySerializer(viewed)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+# =====================================================
+# ADMIN - MODERATION MANAGEMENT
+# =====================================================
+
+# ----------------------
+# ADMIN - WARN USER
+# ----------------------
+class AdminWarnUserView(APIView):
+    """Admin: Issue a warning to a user"""
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+    @transaction.atomic
+    def post(self, request, user_id):
+        is_admin = request.user.is_superuser or getattr(getattr(request.user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            target_user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = WarningCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        warning = Warning.objects.create(
+            user=target_user,
+            issued_by=request.user,
+            reason=serializer.validated_data['reason'],
+            custom_reason=serializer.validated_data.get('custom_reason', ''),
+            message=serializer.validated_data['message'],
+        )
+
+        # Create notification for the user
+        Notification.objects.create(
+            recipient=target_user,
+            notification_type='admin_action',
+            title='Warning Issued',
+            message=f"You have received a warning: {warning.get_reason_display()}. {warning.message}",
+            related_entity_type='warning',
+            related_entity_id=warning.id,
+        )
+
+        # Log moderation action
+        ModerationAction.objects.create(
+            user=target_user,
+            admin=request.user,
+            action_type='warning',
+            reason=warning.get_reason_display(),
+            details={
+                'warning_id': warning.id,
+                'message': warning.message,
+                'custom_reason': warning.custom_reason,
+            }
+        )
+
+        return Response(WarningSerializer(warning).data, status=status.HTTP_201_CREATED)
+
+
+# ----------------------
+# ADMIN - SUSPEND USER
+# ----------------------
+class AdminSuspendUserView(APIView):
+    """Admin: Suspend a user account"""
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+    @transaction.atomic
+    def post(self, request, user_id):
+        is_admin = request.user.is_superuser or getattr(getattr(request.user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            target_user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = SuspensionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        reason = serializer.validated_data['reason']
+        duration = serializer.validated_data['duration']
+
+        # Calculate expiry
+        expires_at = None
+        if duration != 'permanent':
+            from datetime import timedelta
+            duration_map = {
+                '24h': timedelta(hours=24),
+                '3d': timedelta(days=3),
+                '7d': timedelta(days=7),
+                '30d': timedelta(days=30),
+            }
+            expires_at = timezone.now() + duration_map[duration]
+
+        # Deactivate all active suspensions for this user
+        Suspension.objects.filter(user=target_user, is_active=True).update(is_active=False)
+
+        suspension = Suspension.objects.create(
+            user=target_user,
+            issued_by=request.user,
+            reason=reason,
+            duration=duration,
+            expires_at=expires_at,
+            is_active=True,
+        )
+
+        # Create notification for the user
+        expiry_text = "Permanent" if duration == 'permanent' else f"Expires: {expires_at.strftime('%Y-%m-%d %H:%M')}"
+        Notification.objects.create(
+            recipient=target_user,
+            notification_type='admin_action',
+            title='Account Suspended',
+            message=f"Your account has been suspended. Reason: {reason}. Duration: {suspension.get_duration_display()}. {expiry_text}",
+            related_entity_type='suspension',
+            related_entity_id=suspension.id,
+        )
+
+        # Log moderation action
+        ModerationAction.objects.create(
+            user=target_user,
+            admin=request.user,
+            action_type='suspension',
+            reason=reason,
+            details={
+                'suspension_id': suspension.id,
+                'duration': duration,
+                'expires_at': expires_at.isoformat() if expires_at else None,
+            }
+        )
+
+        return Response(SuspensionSerializer(suspension).data, status=status.HTTP_201_CREATED)
+
+
+# ----------------------
+# ADMIN - LIFT SUSPENSION
+# ----------------------
+class AdminLiftSuspensionView(APIView):
+    """Admin: Lift an active suspension"""
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+    @transaction.atomic
+    def post(self, request, suspension_id):
+        is_admin = request.user.is_superuser or getattr(getattr(request.user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            suspension = Suspension.objects.get(pk=suspension_id, is_active=True)
+        except Suspension.DoesNotExist:
+            return Response({"error": "Active suspension not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        suspension.is_active = False
+        suspension.lifted_at = timezone.now()
+        suspension.lifted_by = request.user
+        suspension.save()
+
+        # Notify user
+        Notification.objects.create(
+            recipient=suspension.user,
+            notification_type='admin_action',
+            title='Suspension Lifted',
+            message="Your account suspension has been lifted by an admin.",
+            related_entity_type='suspension',
+            related_entity_id=suspension.id,
+        )
+
+        # Log moderation action
+        ModerationAction.objects.create(
+            user=suspension.user,
+            admin=request.user,
+            action_type='lift_suspension',
+            reason="Lifted by admin",
+            details={'suspension_id': suspension.id}
+        )
+
+        return Response(SuspensionSerializer(suspension).data)
+
+
+# ----------------------
+# ADMIN - ADD NOTE
+# ----------------------
+class AdminAddNoteView(APIView):
+    """Admin: Add a moderation note to a user"""
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+    @transaction.atomic
+    def post(self, request, user_id):
+        is_admin = request.user.is_superuser or getattr(getattr(request.user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            target_user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        note = request.data.get('note', '')
+        if not note:
+            return Response({"error": "Note is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        ModerationAction.objects.create(
+            user=target_user,
+            admin=request.user,
+            action_type='note',
+            reason=note,
+            details={'note': note}
+        )
+
+        return Response({"message": "Note added successfully"}, status=status.HTTP_201_CREATED)
+
+
+# ----------------------
+# ADMIN - MODERATION HISTORY
+# ----------------------
+class AdminModerationHistoryView(APIView):
+    """Admin: Get moderation history for a user"""
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+    def get(self, request, user_id):
+        is_admin = request.user.is_superuser or getattr(getattr(request.user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            target_user = User.objects.get(pk=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        warnings = Warning.objects.filter(user=target_user)
+        suspensions = Suspension.objects.filter(user=target_user)
+        actions = ModerationAction.objects.filter(user=target_user)
+
+        return Response({
+            'warnings': WarningSerializer(warnings, many=True).data,
+            'warnings_count': warnings.count(),
+            'active_warnings_count': warnings.filter(is_read=False).count(),
+            'suspensions': SuspensionSerializer(suspensions, many=True).data,
+            'suspensions_count': suspensions.count(),
+            'active_suspension': SuspensionSerializer(
+                suspensions.filter(is_active=True).first()
+            ).data if suspensions.filter(is_active=True).exists() else None,
+            'moderation_actions': ModerationActionSerializer(actions, many=True).data,
+            'moderation_actions_count': actions.count(),
+        })
+
+
+# ----------------------
+# USER - CHECK SUSPENSION STATUS
+# ----------------------
+class CheckSuspensionStatusView(APIView):
+    """User: Check if the current user is suspended"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        active_suspension = Suspension.objects.filter(user=user, is_active=True).first()
+
+        if not active_suspension:
+            return Response({
+                'is_suspended': False,
+                'suspension': None,
+            })
+
+        # Check if expired
+        if active_suspension.expires_at and active_suspension.expires_at < timezone.now():
+            active_suspension.is_active = False
+            active_suspension.save()
+            return Response({
+                'is_suspended': False,
+                'suspension': None,
+            })
+
+        return Response({
+            'is_suspended': True,
+            'suspension': SuspensionSerializer(active_suspension).data,
+        })
+
+
+# ----------------------
+# USER - GET MY WARNINGS
+# ----------------------
+class UserWarningListView(APIView):
+    """User: Get all warnings issued to the current user"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        warnings = Warning.objects.filter(user=request.user)
+        return Response({
+            'count': warnings.count(),
+            'results': WarningSerializer(warnings, many=True).data,
+        })
+
+
+# ----------------------
+# USER - MARK WARNING AS READ
+# ----------------------
+class MarkWarningReadView(APIView):
+    """User: Mark a warning as read"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, warning_id):
+        try:
+            warning = Warning.objects.get(pk=warning_id, user=request.user)
+        except Warning.DoesNotExist:
+            return Response({"error": "Warning not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        warning.is_read = True
+        warning.save()
+        return Response(WarningSerializer(warning).data)
+
+
+# ----------------------
+# ADMIN - PROPERTY HIDE/UNHIDE
+# ----------------------
+class AdminPropertyToggleVisibilityView(APIView):
+    """Admin: Hide or unhide a property listing"""
+    permission_classes = [permissions.IsAuthenticated, IsAdminUser]
+
+    @transaction.atomic
+    def post(self, request, property_id):
+        is_admin = request.user.is_superuser or getattr(getattr(request.user, 'profile', None), 'role', None) == 'admin'
+        if not is_admin:
+            return Response({"error": "Admin access required"}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            property_obj = Property.objects.get(pk=property_id)
+        except Property.DoesNotExist:
+            return Response({"error": "Property not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        hide = request.data.get('hide', True)
+        property_obj.available = not hide
+        property_obj.save()
+
+        action_type = 'property_hide' if hide else 'property_unhide'
+
+        ModerationAction.objects.create(
+            user=property_obj.owner,
+            admin=request.user,
+            action_type=action_type,
+            reason=request.data.get('reason', ''),
+            details={
+                'property_id': property_obj.id,
+                'property_title': property_obj.title,
+                'hide': hide,
+            }
+        )
+
+        # Notify the owner
+        verb = "hidden" if hide else "unhidden"
+        Notification.objects.create(
+            recipient=property_obj.owner,
+            notification_type='admin_action',
+            title=f'Property {verb.capitalize()}',
+            message=f'Your property "{property_obj.title}" has been {verb} by an admin.',
+            related_entity_type='property',
+            related_entity_id=property_obj.id,
+        )
+
+        return Response({
+            'message': f'Property {"hidden" if hide else "unhidden"} successfully',
+            'property_id': property_obj.id,
+            'available': property_obj.available,
+        })

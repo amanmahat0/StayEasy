@@ -51,13 +51,13 @@ const KYCVerifications: React.FC = () => {
     <div className="min-h-screen bg-[#F8F9FA] pb-12 font-sans text-gray-800">
       <Header />
       
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* --- HEADER SECTION (Matches Admin Dashboard) --- */}
         <div className="flex justify-between items-end mb-10">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Shield className="text-[#A989C8]" size={24} />
-              <h1 className="text-3xl font-black text-gray-900 tracking-tight">KYC Verifications</h1>
+              <h1 className="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">KYC Verifications</h1>
             </div>
             <p className="text-gray-500 font-medium">Review and manage user verification requests</p>
           </div>
@@ -127,12 +127,12 @@ const KYCVerifications: React.FC = () => {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex border-b border-gray-100">
+          <div className="flex flex-wrap border-b border-gray-100">
             {(['pending', 'approved', 'rejected'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-4 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all relative ${
+                className={`sm:flex-1 py-4 text-xs font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all relative ${
                   activeTab === tab ? 'text-[#A989C8]' : 'text-gray-400 hover:text-gray-600'
                 }`}
               >
@@ -158,20 +158,21 @@ const KYCVerifications: React.FC = () => {
               </div>
             ) : (
               filteredList.map((item) => (
-                <KycListItem
-                  key={item.id}
-                  id={item.id}
-                  name={item.full_name}
-                  role={item.user_info.user_type}
-                  email={item.user_info.email}
-                  phone={item.phone_number}
-                  citizenship={item.citizenship_number}
-                  docsCount={1}
-                  submittedAt={new Date(item.submitted_at).toLocaleDateString()}
-                  avatarUrl={`https://i.pravatar.cc/150?u=${item.user_info.email}`}
-                  status={item.status}
-                  onReview={() => { setSelectedKyc(item); setIsModalOpen(true); }}
-                />
+                <div key={item.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 sm:p-0 sm:bg-transparent sm:border-0 sm:shadow-none">
+                  <KycListItem
+                    id={item.id}
+                    name={item.full_name}
+                    role={item.user_info.user_type}
+                    email={item.user_info.email}
+                    phone={item.phone_number}
+                    citizenship={item.citizenship_number}
+                    docsCount={1}
+                    submittedAt={new Date(item.submitted_at).toLocaleDateString()}
+                    avatarUrl={`https://i.pravatar.cc/150?u=${item.user_info.email}`}
+                    status={item.status}
+                    onReview={() => { setSelectedKyc(item); setIsModalOpen(true); }}
+                  />
+                </div>
               ))
             )}
           </div>
@@ -204,13 +205,17 @@ const KYCVerifications: React.FC = () => {
       </main>
 
       {selectedKyc && (
-        <KycModal
-          kyc={selectedKyc}
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onApprove={(id) => handleStatusUpdate(id, 'approved')}
-          onReject={(id) => handleStatusUpdate(id, 'rejected')}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div className="w-full max-w-lg mx-auto">
+            <KycModal
+              kyc={selectedKyc}
+              isOpen={isModalOpen}
+              onClose={() => setIsModalOpen(false)}
+              onApprove={(id) => handleStatusUpdate(id, 'approved')}
+              onReject={(id) => handleStatusUpdate(id, 'rejected')}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

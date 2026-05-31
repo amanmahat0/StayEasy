@@ -94,7 +94,7 @@ export default function Success({ bookingData, onSignAgreement }: { bookingData:
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto bg-white rounded-[40px] p-12 shadow-sm border border-gray-50 text-center">
+      <div className="max-w-4xl mx-auto bg-white rounded-[40px] px-4 sm:px-6 py-8 sm:py-12 shadow-sm border border-gray-50 text-center">
         <p className="text-gray-600">Creating your booking...</p>
       </div>
     );
@@ -102,11 +102,11 @@ export default function Success({ bookingData, onSignAgreement }: { bookingData:
 
   if (error) {
     return (
-      <div className="max-w-4xl mx-auto bg-white rounded-[40px] p-12 shadow-sm border border-red-100">
+      <div className="max-w-4xl mx-auto bg-white rounded-[40px] px-4 sm:px-6 py-8 sm:py-12 shadow-sm border border-red-100">
         <div className="flex items-center justify-center mb-4">
           <AlertCircle className="text-red-500" size={40} />
         </div>
-        <h2 className="text-2xl font-bold text-red-600 text-center mb-4">Error Creating Booking</h2>
+        <h2 className="text-xl sm:text-2xl font-bold text-red-600 text-center mb-4">Error Creating Booking</h2>
         <p className="text-red-600 text-center mb-6">{error}</p>
         <button 
           onClick={() => window.location.reload()}
@@ -120,7 +120,7 @@ export default function Success({ bookingData, onSignAgreement }: { bookingData:
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto bg-white rounded-[40px] p-12 shadow-sm border border-gray-50 text-center">
+      <div className="max-w-4xl mx-auto bg-white rounded-[40px] px-4 sm:px-6 py-8 sm:py-12 shadow-sm border border-gray-50 text-center">
         <p>Creating your booking...</p>
       </div>
     );
@@ -128,22 +128,22 @@ export default function Success({ bookingData, onSignAgreement }: { bookingData:
 
   if (!booking) {
     return (
-      <div className="max-w-4xl mx-auto bg-white rounded-[40px] p-12 shadow-sm border border-gray-50 text-center">
+      <div className="max-w-4xl mx-auto bg-white rounded-[40px] px-4 sm:px-6 py-8 sm:py-12 shadow-sm border border-gray-50 text-center">
         <p>Unable to create booking. Please try again.</p>
       </div>
     );
   }
   return (
-    <div className="max-w-4xl mx-auto bg-white rounded-[40px] p-12 shadow-sm border border-gray-50 text-center">
+    <div className="max-w-4xl mx-auto bg-white rounded-[40px] px-4 sm:px-6 py-8 sm:py-12 shadow-sm border border-gray-50 text-center">
       <div className="flex justify-center mb-6">
         <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-100">
           <CheckCircle size={40} />
         </div>
       </div>
-      <h1 className="text-4xl font-black text-gray-900 mb-4">Booking Confirmed!</h1>
+      <h1 className="text-2xl sm:text-3xl font-black text-gray-900 mb-4">Booking Confirmed!</h1>
       <p className="text-gray-500 mb-10 max-w-md mx-auto font-medium">Your booking has been successfully confirmed. We've sent the details to your email.</p>
 
-      <div className="bg-gray-50 rounded-[32px] p-8 mb-10 text-left space-y-4">
+      <div className="bg-gray-50 rounded-[32px] p-4 sm:p-8 mb-10 text-left space-y-4">
         <h3 className="font-bold text-gray-800 border-b border-gray-200 pb-4 mb-4">Booking Details</h3>
         <div className="flex justify-between text-sm"><span className="text-gray-400 font-medium">Booking ID</span><span className="font-bold text-gray-800">{booking.id}</span></div>
         <div className="flex justify-between text-sm"><span className="text-gray-400 font-medium">Name</span><span className="font-bold text-gray-800">{bookingData.fullName}</span></div>
@@ -152,9 +152,9 @@ export default function Success({ bookingData, onSignAgreement }: { bookingData:
         <div className="flex justify-between text-sm pt-4 border-t border-gray-200"><span className="text-gray-400 font-medium">Total Paid</span><span className="font-bold text-[#A989C8] text-lg">NPR {parseInt(booking.total_price).toLocaleString()}</span></div>
       </div>
 
-      <div className="flex gap-4 justify-center">
-        <button onClick={onSignAgreement} className="px-10 py-4 bg-[#A989C8] text-white font-bold rounded-2xl flex items-center gap-2 transition hover:bg-[#9370DB] shadow-lg shadow-purple-100"><FileSignature size={18} /> Sign Agreement</button>
-        <button className="px-10 py-4 border border-gray-200 text-gray-600 font-bold rounded-2xl hover:bg-gray-50 transition flex items-center gap-2"><Download size={18} /> Download Invoice</button>
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+        <button onClick={onSignAgreement} className="w-full sm:w-auto px-6 sm:px-10 py-4 bg-[#A989C8] text-white font-bold rounded-2xl flex items-center gap-2 justify-center transition hover:bg-[#9370DB] shadow-lg shadow-purple-100"><FileSignature size={18} /> Sign Agreement</button>
+        <button className="w-full sm:w-auto px-6 sm:px-10 py-4 border border-gray-200 text-gray-600 font-bold rounded-2xl hover:bg-gray-50 transition flex items-center gap-2 justify-center"><Download size={18} /> Download Invoice</button>
       </div>
     </div>
   );

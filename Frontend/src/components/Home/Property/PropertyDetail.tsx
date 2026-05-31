@@ -251,7 +251,7 @@ export default function PropertyDetails() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <PublicNavbar />
-      <main className="max-w-7xl mx-auto px-4 md:px-6 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <nav className="flex text-sm text-gray-500 gap-2 mb-8">
           <button onClick={() => navigate("/home")} className="hover:text-[#A989C8] transition font-medium">Home</button>
           <span>/</span>
@@ -264,7 +264,7 @@ export default function PropertyDetails() {
           <div className="lg:col-span-2 space-y-8">
             {/* Gallery */}
             <div className="bg-white rounded-3xl shadow-lg overflow-hidden">
-              <div className="relative w-full h-[500px] bg-gray-200 overflow-hidden group">
+              <div className="relative w-full h-[300px] sm:h-[400px] lg:h-[500px] bg-gray-200 overflow-hidden group">
                 <img src={imageUrl} alt={property.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110 cursor-pointer"
                   onClick={() => setShowLightbox(true)} onError={(e) => { e.currentTarget.src = "/no-image.png"; }} />
                 {images.length > 1 && (
@@ -307,16 +307,17 @@ export default function PropertyDetails() {
       <img
         src={imageUrl}
         alt={property.title}
-        style={{ maxHeight: "80vh", maxWidth: "75vw", borderRadius: "20px", objectFit: "contain", display: "block" }}
+        style={{ maxHeight: "80vh", maxWidth: "90vw", borderRadius: "20px", objectFit: "contain", display: "block" }}
+        className="sm:max-w-[75vw]"
         onError={(e) => { e.currentTarget.src = "/no-image.png"; }}
       />
       {images.length > 1 && (
         <>
-          <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="absolute -left-16 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(0,0,0,0.08)", border: "0.5px solid rgba(0,0,0,0.1)" }}>
-            <ChevronLeft className="w-5 h-5 text-gray-700" />
+          <button onClick={(e) => { e.stopPropagation(); prevImage(); }} className="absolute left-2 sm:-left-16 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(0,0,0,0.08)", border: "0.5px solid rgba(0,0,0,0.1)" }}>
+            <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="absolute -right-16 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(0,0,0,0.08)", border: "0.5px solid rgba(0,0,0,0.1)" }}>
-            <ChevronRight className="w-5 h-5 text-gray-700" />
+          <button onClick={(e) => { e.stopPropagation(); nextImage(); }} className="absolute right-2 sm:-right-16 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center transition-all hover:scale-110" style={{ background: "rgba(0,0,0,0.08)", border: "0.5px solid rgba(0,0,0,0.1)" }}>
+            <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-gray-700" />
           </button>
         </>
       )}
@@ -337,7 +338,7 @@ export default function PropertyDetails() {
             {/* Header */}
             <div className="bg-white rounded-3xl shadow-lg p-8">
               <div className="mb-6">
-                <h1 className="text-4xl font-bold text-gray-900 mb-3">{property.title}</h1>
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3">{property.title}</h1>
                 <div className="flex flex-wrap items-center gap-4 text-sm md:text-base">
                   <span className="flex items-center gap-2 text-gray-600"><MapPin className="w-5 h-5 text-[#A989C8]" /> {property.city}</span>
                   <span className="flex items-center gap-2 text-yellow-500 font-semibold"><Star className="w-5 h-5 fill-yellow-500" /> 4.8 (24 reviews)</span>
@@ -350,15 +351,15 @@ export default function PropertyDetails() {
               </div>
               <div className="border-t border-gray-200 pt-6">
                 <p className="text-gray-600 text-sm font-medium mb-2">Monthly Rent</p>
-                <p className="text-5xl font-bold text-[#A989C8] mb-4">NPR {parseInt(property.price).toLocaleString()}<span className="text-2xl text-gray-500 font-normal">/month</span></p>
+                <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#A989C8] mb-4">NPR {parseInt(property.price).toLocaleString()}<span className="text-lg sm:text-xl lg:text-2xl text-gray-500 font-normal">/month</span></p>
               </div>
             </div>
 
             {/* About */}
             <div className="bg-white rounded-3xl shadow-lg p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">About this property</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">About this property</h2>
               <p className="text-gray-600 leading-relaxed text-lg mb-6">{property.description || `Beautiful ${property.property_type} located in ${property.city}. Fully furnished with modern amenities and excellent location.`}</p>
-              <div className="grid grid-cols-3 gap-6 border-t border-gray-200 pt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 border-t border-gray-200 pt-6">
                 <div><p className="text-gray-500 text-sm font-medium mb-2">Type</p><p className="text-xl font-bold text-gray-900">{property.property_type}</p></div>
                 <div><p className="text-gray-500 text-sm font-medium mb-2">Location</p><p className="text-xl font-bold text-gray-900">{property.city}</p></div>
                 
@@ -377,7 +378,7 @@ export default function PropertyDetails() {
 
             {/* Amenities */}
             <div className="bg-white rounded-3xl shadow-lg p-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Amenities</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Amenities</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                 {amenities.map((amenity, idx) => {
                   const Icon = amenity.icon;
@@ -393,7 +394,7 @@ export default function PropertyDetails() {
 
 {/* Owner */}
 <div className="bg-white rounded-3xl shadow-lg p-8">
-  <h2 className="text-2xl font-bold text-gray-900 mb-6">
+  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">
     Hosted by {property.owner_name || property.landlord_name || "Owner"}
   </h2>
 
@@ -416,7 +417,7 @@ export default function PropertyDetails() {
     </div>
   </div>
 
-  <div className="grid grid-cols-2 gap-4">
+  <div className="flex flex-col sm:grid sm:grid-cols-2 gap-4">
     {canChat(authContext?.user || null) && (
       <button
         onClick={async () => {
@@ -462,7 +463,7 @@ export default function PropertyDetails() {
             <div className="sticky top-24 space-y-6">
               <div className="bg-white rounded-3xl shadow-lg p-8">
                 <p className="text-gray-600 text-sm font-medium mb-2">Starting from</p>
-                <p className="text-4xl font-bold text-[#A989C8] mb-6">NPR {parseInt(property.price).toLocaleString()}<span className="text-lg text-gray-500 font-normal block">/month</span></p>
+                <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#A989C8] mb-6">NPR {parseInt(property.price).toLocaleString()}<span className="text-base sm:text-lg text-gray-500 font-normal block">/month</span></p>
                 <div className="space-y-3 mb-6 pb-6 border-b border-gray-200">
                   <div className="flex justify-between text-sm text-gray-600"><span>Monthly Rent</span><span className="font-semibold text-gray-900">NPR {parseInt(property.price).toLocaleString()}</span></div>
                   <div className="flex justify-between text-sm text-gray-600"><span>Security Deposit</span><span className="font-semibold text-gray-900">NPR {(parseInt(property.price) * 2).toLocaleString()}</span></div>
@@ -553,7 +554,7 @@ export default function PropertyDetails() {
 
       {/* Success Toast */}
       {successMessage && (
-        <div className="fixed bottom-6 right-6 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center gap-3 z-50 animate-slide-in">
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 left-4 sm:left-auto bg-green-500 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-lg shadow-lg flex items-center gap-3 z-50 animate-slide-in">
           <CheckCircle2 size={20} />
           <span className="font-medium">{successMessage}</span>
         </div>
@@ -562,11 +563,11 @@ export default function PropertyDetails() {
       {/* Cancel Booking Modal */}
       {showCancelModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl max-w-md w-full p-6 sm:p-8 mx-4 sm:mx-0 max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="flex items-start justify-between mb-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Cancel your booking?</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Cancel your booking?</h2>
                 <p className="text-gray-600 text-sm mt-1">Review the cancellation details below</p>
               </div>
               <button
@@ -650,7 +651,7 @@ export default function PropertyDetails() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <button
                 onClick={() => setShowCancelModal(false)}
                 className="flex-1 py-3 border-2 border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition disabled:opacity-50"

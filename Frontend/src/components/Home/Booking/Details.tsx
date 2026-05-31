@@ -82,7 +82,7 @@ export default function Details({ onNext, onBack }: any) {
   const totalPrice = monthlyPrice * leaseMonths;
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
 
       {/* BACK */}
       <button onClick={onBack} className="flex items-center gap-2 mb-6 text-gray-500">
@@ -95,7 +95,7 @@ export default function Details({ onNext, onBack }: any) {
         <div className="lg:col-span-7 space-y-6">
 
           {/* FORM CARD */}
-          <div className="bg-white p-6 md:p-8 rounded-2xl border">
+          <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl border">
             <h2 className="text-xl font-bold mb-6">Booking Details</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -117,7 +117,7 @@ export default function Details({ onNext, onBack }: any) {
               </div>
 
               <select
-                className="border p-3 rounded-xl"
+                className="w-full border p-3 rounded-xl"
                 value={formData.leaseDuration}
                 onChange={(e) =>
                   setFormData({ ...formData, leaseDuration: e.target.value })
@@ -176,7 +176,7 @@ export default function Details({ onNext, onBack }: any) {
 
           {/* PROPERTY CARD */}
           {/* PROPERTY CARD */}
-<div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+<div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
 
   {/* IMAGE */}
   <div className="w-full h-44 overflow-hidden rounded-xl bg-gray-100">
@@ -227,7 +227,7 @@ export default function Details({ onNext, onBack }: any) {
 </div>
 
           {/* DESCRIPTION */}
-          <div className="bg-white p-5 rounded-2xl border">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border">
             <h3 className="font-bold mb-2">Description</h3>
             <p className="text-gray-600 text-sm leading-relaxed">
               {property.description || "No description available"}
@@ -235,13 +235,13 @@ export default function Details({ onNext, onBack }: any) {
           </div>
 
           {/* DETAILS */}
-<div className="bg-white p-6 rounded-2xl border border-gray-100 space-y-4">
+<div className="bg-white p-4 sm:p-6 rounded-2xl border border-gray-100 space-y-4">
 
   <h3 className="text-lg font-bold text-gray-900">
     Property Details
   </h3>
 
-  <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-6 text-sm">
 
     <div>
       <p className="text-gray-400 text-xs">Type</p>

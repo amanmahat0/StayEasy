@@ -63,8 +63,8 @@ export default function ChatInbox({ initialConversationId }: ChatInboxProps) {
       const pollInterval = setInterval(() => loadChats(), 10000);
 
       return () => {
-        socketService.removeListener("receive-message");
-        socketService.removeListener("new-notification");
+        socketService.removeListener("receive-message", handleMessage);
+        socketService.removeListener("new-notification", handleNotification as any);
         clearInterval(pollInterval);
       };
     }
@@ -86,9 +86,13 @@ export default function ChatInbox({ initialConversationId }: ChatInboxProps) {
     return view.participantName.toLowerCase().includes(search.toLowerCase());
   });
 
-  const handleSelect = (c: ConversationData) => {
+  const handleSelect = async (c: ConversationData) => {
     setSelected(toConversationView(c, user!.id, user!.user_type));
     setShowSidebar(false);
+    try {
+      await chatService.markAsRead(c.id);
+      loadChats();
+    } catch {}
   };
 
   const handleClose = () => {
@@ -203,7 +207,7 @@ export default function ChatInbox({ initialConversationId }: ChatInboxProps) {
             inline
           />
         ) : (
-          <div className="hidden md:flex flex-col items-center gap-2">
+          <div className="flex flex-col items-center gap-2">
             <MessageCircle className="w-12 h-12" />
             <p className="text-sm">Select a conversation to start chatting</p>
           </div>

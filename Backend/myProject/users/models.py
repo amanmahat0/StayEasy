@@ -544,6 +544,12 @@ class Notification(models.Model):
         ('kyc_rejected', 'KYC Rejected'),
         ('payment_received', 'Payment Received'),
         ('payment_failed', 'Payment Failed'),
+        ('admin_action', 'Admin Action'),
+        ('agreement_created', 'Agreement Created'),
+        ('agreement_tenant_signed', 'Agreement Signed by Tenant'),
+        ('agreement_landlord_signed', 'Agreement Signed by Landlord'),
+        ('agreement_activated', 'Agreement Activated'),
+        ('agreement_expiring', 'Agreement Expiring Soon'),
     )
     
     recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications")
@@ -564,3 +570,168 @@ class Notification(models.Model):
     
     def __str__(self):
         return f"Notification {self.id} - {self.title} (to {self.recipient.username})"
+
+
+# ============================================================
+# MODERATION MODELS
+# Admin actions for user management (warnings, suspensions)
+# ============================================================
+
+class Warning(models.Model):
+    """Records warnings issued to users by admins"""
+
+    WARNING_REASONS = (
+        ('fake_info', 'Fake Information'),
+        ('suspicious_activity', 'Suspicious Activity'),
+        ('policy_violation', 'Policy Violation'),
+        ('payment_issues', 'Payment Issues'),
+        ('property_listing_issues', 'Property Listing Issues'),
+        ('custom', 'Custom Reason'),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="warnings")
+    issued_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="warnings_issued")
+    reason = models.CharField(max_length=50, choices=WARNING_REASONS)
+    custom_reason = models.CharField(max_length=255, blank=True, null=True)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Warning: {self.user.username} - {self.get_reason_display()}"
+
+
+class Suspension(models.Model):
+    """Records account suspensions"""
+
+    DURATION_CHOICES = (
+        ('24h', '24 Hours'),
+        ('3d', '3 Days'),
+        ('7d', '7 Days'),
+        ('30d', '30 Days'),
+        ('permanent', 'Permanent'),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="suspensions")
+    issued_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="suspensions_issued")
+    reason = models.TextField()
+    duration = models.CharField(max_length=20, choices=DURATION_CHOICES)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    lifted_at = models.DateTimeField(null=True, blank=True)
+    lifted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="suspensions_lifted")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Suspension: {self.user.username} - {self.duration}"
+
+
+class ModerationAction(models.Model):
+    """Audit log for all moderation actions taken by admins"""
+
+    ACTION_TYPES = (
+        ('warning', 'Warning'),
+        ('suspension', 'Suspension'),
+        ('lift_suspension', 'Lift Suspension'),
+        ('kyc_approve', 'KYC Approved'),
+        ('kyc_reject', 'KYC Rejected'),
+        ('kyc_resubmission', 'KYC Resubmission Requested'),
+        ('property_hide', 'Property Hidden'),
+        ('property_unhide', 'Property Unhidden'),
+        ('note', 'Note Added'),
+    )
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="moderation_actions")
+    admin = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="moderation_actions_taken")
+    action_type = models.CharField(max_length=30, choices=ACTION_TYPES)
+    reason = models.TextField(blank=True, null=True)
+    details = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.get_action_type_display()} - {self.user.username} by {self.admin.username if self.admin else 'System'}"
+
+
+# ============================================================
+# RENTAL AGREEMENT MODEL
+# Digital rental agreement with e-signature support
+# ============================================================
+class RentalAgreement(models.Model):
+    """Digital rental agreement between tenant and landlord"""
+
+    AGREEMENT_STATUSES = (
+        ('draft', 'Draft'),
+        ('pending_tenant', 'Pending Tenant Signature'),
+        ('pending_landlord', 'Pending Landlord Signature'),
+        ('active', 'Active'),
+        ('expired', 'Expired'),
+        ('terminated', 'Terminated'),
+    )
+
+    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='rental_agreements')
+    property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='rental_agreements')
+    tenant = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tenant_agreements')
+    landlord = models.ForeignKey(User, on_delete=models.CASCADE, related_name='landlord_agreements')
+
+    status = models.CharField(max_length=30, choices=AGREEMENT_STATUSES, default='pending_tenant')
+
+    # Snapshot data — frozen at creation
+    agreement_content = models.TextField(help_text="Full legal terms and conditions")
+    monthly_rent = models.DecimalField(max_digits=10, decimal_places=2)
+    security_deposit = models.DecimalField(max_digits=10, decimal_places=2)
+    lease_duration_months = models.IntegerField(default=12)
+
+    # Snapshot of tenant info
+    tenant_name = models.CharField(max_length=255)
+    tenant_email = models.EmailField()
+    tenant_phone = models.CharField(max_length=20, blank=True, default='')
+    tenant_citizenship = models.CharField(max_length=100, blank=True, default='')
+
+    # Snapshot of landlord info
+    landlord_name = models.CharField(max_length=255)
+    landlord_email = models.EmailField()
+    landlord_phone = models.CharField(max_length=20, blank=True, default='')
+    landlord_kyc_verified = models.BooleanField(default=False)
+
+    # Snapshot of property info
+    property_name = models.CharField(max_length=255)
+    property_address = models.TextField()
+    property_type = models.CharField(max_length=100)
+
+    # Payment snapshot
+    transaction_id = models.CharField(max_length=255, blank=True, default='')
+    payment_date = models.DateTimeField(null=True, blank=True)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2)
+
+    # Tenant signature
+    tenant_signature = models.TextField(blank=True, null=True, help_text="Base64 encoded signature image")
+    tenant_signed_at = models.DateTimeField(null=True, blank=True)
+    tenant_ip_address = models.CharField(max_length=45, blank=True, default='')
+    tenant_device_info = models.TextField(blank=True, default='')
+
+    # Landlord signature
+    landlord_signature = models.TextField(blank=True, null=True, help_text="Base64 encoded signature image")
+    landlord_signed_at = models.DateTimeField(null=True, blank=True)
+    landlord_ip_address = models.CharField(max_length=45, blank=True, default='')
+    landlord_device_info = models.TextField(blank=True, default='')
+
+    # PDF
+    agreement_pdf = models.FileField(upload_to='agreements/', null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Agreement #{self.id} - {self.property_name} ({self.get_status_display()})"

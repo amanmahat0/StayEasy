@@ -135,12 +135,12 @@ const Properties = () => {
       <main className="flex-grow max-w-7xl mx-auto w-full px-6 py-12">
         {/* 1. Header Section */}
         <div className="mb-10">
-          <h1 className="text-4xl font-extrabold text-[#1A1A1A] tracking-tight">Your Properties</h1>
+          <h1 className="text-2xl sm:text-4xl font-extrabold text-[#1A1A1A] tracking-tight">Your Properties</h1>
           <p className="text-gray-500 mt-2 text-lg font-medium">Manage and monitor all your listed properties</p>
         </div>
 
         {/* 2. Search & Filter Bar */}
-        <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+        <div className="bg-white px-4 sm:px-6 py-6 rounded-[2.5rem] shadow-sm border border-gray-100 mb-8 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="flex-grow">
             {/* Search Input */}
             <div className="relative mb-6">
@@ -183,7 +183,7 @@ const Properties = () => {
           </div>
 
           {/* Add Property Button */}
-          <div className="self-start lg:self-center">
+          <div className="self-start lg:self-center w-full lg:w-auto">
             <button 
               onClick={() => {
                 if (kycStatus === 'pending') {
@@ -195,7 +195,7 @@ const Properties = () => {
                 }
               }}
               disabled={kycStatus === 'pending'}
-              className={`px-8 py-4 rounded-2xl font-bold flex items-center gap-2 shadow-md transition-all ${
+              className={`w-full lg:w-auto px-8 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-md transition-all ${
                 kycStatus === 'pending'
                   ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
                   : 'bg-[#A989C8] hover:bg-[#9674b5] text-white shadow-[#A989C8]/20'
@@ -217,7 +217,7 @@ const Properties = () => {
 
         {/* 3. Property Table */}
         <div className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-gray-100 relative">
-          <table className="w-full text-left">
+          <table className="w-full text-left hidden md:table">
             <thead>
               <tr className="border-b border-gray-50 text-[11px] uppercase tracking-[0.1em] text-gray-400 font-black">
                 <th className="px-8 py-6">Property</th>
@@ -302,6 +302,77 @@ const Properties = () => {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* 4. Mobile Property Cards */}
+        <div className="md:hidden block space-y-4">
+          {loading ? (
+            <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100 text-center text-gray-400 animate-pulse font-bold">Loading properties...</div>
+          ) : filteredProperties.length === 0 ? (
+            <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100 text-center text-gray-400 font-bold">No properties found.</div>
+          ) : filteredProperties.map((item) => (
+            <div key={item.id} className="bg-white rounded-[2.5rem] p-5 shadow-sm border border-gray-100 relative">
+              <div className="flex items-start gap-4">
+                <img 
+                  src={getImageUrl(item)} 
+                  className="w-16 h-16 rounded-xl object-cover shadow-sm border border-gray-50 shrink-0" 
+                  alt={item.title}
+                  onError={(e) => (e.currentTarget.src = 'https://via.placeholder.com/150')}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-bold text-[#2D3748] text-sm truncate">{item.title}</h4>
+                      <p className="text-gray-400 text-[10px] font-bold">ID: {item.id}</p>
+                    </div>
+                    <button 
+                      onClick={() => setOpenMenuId(openMenuId === item.id ? null : item.id)}
+                      className="text-gray-300 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-gray-100 shrink-0"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mt-3">
+                    <span className="bg-[#F3F0FF] text-[#A989C8] px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tight">
+                      {item.property_type || 'Room'}
+                    </span>
+                    <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase ${
+                      item.status?.toLowerCase() === 'published' 
+                        ? 'bg-green-50 text-green-500'
+                        : item.status?.toLowerCase() === 'booked'
+                        ? 'bg-blue-50 text-blue-500'
+                        : 'bg-yellow-50 text-yellow-600'
+                    }`}>
+                      {item.status || 'published'}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-sm text-gray-600 font-medium">
+                    {item.city || item.address || 'N/A'}
+                  </div>
+                  <div className="mt-1 font-bold text-gray-900 text-sm">NPR {Number(item.price).toLocaleString()}</div>
+                </div>
+              </div>
+
+              {/* Dropdown Menu */}
+              {openMenuId === item.id && (
+                <div className="absolute right-4 top-16 bg-white rounded-lg shadow-lg border border-gray-100 z-50 min-w-max">
+                  {getMenuItems(item).map((menuItem, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => menuItem.action(item)}
+                      className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors ${
+                        menuItem.danger
+                          ? 'text-red-500 hover:bg-red-50'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      } border-b border-gray-50 last:border-b-0`}
+                    >
+                      {menuItem.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </main>
 

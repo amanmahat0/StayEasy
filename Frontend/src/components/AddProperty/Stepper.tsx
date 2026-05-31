@@ -24,7 +24,7 @@ const Stepper: React.FC<Props> = ({ currentStep }) => {
           <React.Fragment key={step.id}>
             <div className="flex flex-col items-center z-10">
               <div 
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm mb-2 transition-all duration-300 border-2
+                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center font-bold text-sm mb-2 transition-all duration-300 border-2
                   ${isCompleted 
                     ? 'bg-[#A87DC2] border-[#A87DC2] text-white' 
                     : isActive 

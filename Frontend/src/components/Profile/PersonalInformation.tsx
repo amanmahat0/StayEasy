@@ -159,7 +159,7 @@ const PersonalInformation = () => {
           <div className="flex-1">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                   {form.first_name || form.last_name
                     ? `${form.first_name} ${form.last_name}`
                     : "Your Name"}
@@ -174,7 +174,7 @@ const PersonalInformation = () => {
               <button
                 onClick={() => isEditing ? document.getElementById("profile-form")?.requestSubmit() : setIsEditing(true)}
                 disabled={saving}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#A989C8] text-white rounded-xl text-sm font-bold hover:bg-[#8d6aa9] transition-colors shadow-md shadow-[#A989C8]/20 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#A989C8] text-white rounded-xl text-sm font-bold hover:bg-[#8d6aa9] transition-colors shadow-md shadow-[#A989C8]/20 disabled:opacity-50 w-full sm:w-auto justify-center"
               >
                 {saving ? (
                   <Loader size={16} className="animate-spin" />
@@ -216,7 +216,7 @@ const PersonalInformation = () => {
       {/* Personal Information Section */}
       <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100">
         <div className="mb-6">
-          <h3 className="text-xl font-bold text-gray-900">Personal Information</h3>
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900">Personal Information</h3>
           <p className="text-gray-500 text-sm mt-1">Update your personal details and contact information</p>
         </div>
 
@@ -303,7 +303,7 @@ const PersonalInformation = () => {
               <ShieldCheck size={20} />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-900">Identity Verification (KYC)</h3>
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900">Identity Verification (KYC)</h3>
               <p className="text-gray-500 text-sm">Your submitted KYC information</p>
             </div>
           </div>
@@ -319,7 +319,7 @@ const PersonalInformation = () => {
               <p className="text-sm text-gray-400 mb-6">Verify your identity to unlock property listing features</p>
               <button
                 onClick={() => navigate("/kyc")}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-[#A989C8] text-white rounded-xl font-bold text-sm hover:bg-[#8d6aa9] transition-colors shadow-md shadow-[#A989C8]/20"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-[#A989C8] text-white rounded-xl font-bold text-sm hover:bg-[#8d6aa9] transition-colors shadow-md shadow-[#A989C8]/20 w-full sm:w-auto justify-center"
               >
                 <ShieldCheck size={16} />
                 Submit KYC
@@ -423,7 +423,7 @@ const PersonalInformation = () => {
                   </p>
                   <button
                     onClick={() => navigate("/kyc")}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#A989C8] text-white rounded-xl font-bold text-sm hover:bg-[#8d6aa9] transition-colors"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#A989C8] text-white rounded-xl font-bold text-sm hover:bg-[#8d6aa9] transition-colors w-full sm:w-auto justify-center"
                   >
                     Resubmit KYC
                   </button>

@@ -67,7 +67,7 @@ const Step3Details: React.FC<Props> = ({ formData, setFormData }) => {
 
       {/* Basic Inputs */}
       {!isLand ? (
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <input
             type="number"
             placeholder="Bedrooms"
@@ -91,7 +91,7 @@ const Step3Details: React.FC<Props> = ({ formData, setFormData }) => {
           />
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-6 items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
           {/* Land Size - NUMBER ONLY */}
           <div className="flex items-center gap-2">
             <input

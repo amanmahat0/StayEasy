@@ -116,7 +116,7 @@ export default function Payment({
   };
 
   return (
-    <><div className="max-w-6xl mx-auto p-6">
+    <><div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
       {/* Back Button positioned above the payment details */}
       <button 
         onClick={onBack}
@@ -126,11 +126,11 @@ export default function Payment({
         BACK
       </button>
 
-      <div className="grid grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-8">
         {/* Left Column: Payment Form */}
-        <div className="col-span-7 space-y-6">
-          <div className="bg-white p-8 rounded-2xl border border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Payment Method</h2>
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-white p-4 sm:p-8 rounded-2xl border border-gray-200">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Payment Method</h2>
             
             {/* Full Payment Option */}
             <div 
@@ -208,18 +208,18 @@ export default function Payment({
             )}
 
             {/* Action Buttons */}
-            <div className="flex gap-3 mt-8">
+            <div className="flex flex-col sm:flex-row gap-3 mt-8">
               <button 
                 onClick={onBack}
                 disabled={isProcessing}
-                className="flex-1 py-4 border-2 border-gray-200 text-gray-600 font-bold rounded-2xl hover:border-gray-300 transition-colors disabled:opacity-50"
+                className="w-full sm:flex-1 py-4 border-2 border-gray-200 text-gray-600 font-bold rounded-2xl hover:border-gray-300 transition-colors disabled:opacity-50"
               >
                 Back
               </button>
               <button 
                 onClick={handleEsewaPayment}
                 disabled={isProcessing}
-                className="flex-1 py-4 bg-[#A989C8] hover:bg-[#9677b4] disabled:bg-gray-400 text-white font-bold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2"
+                className="w-full sm:flex-1 py-4 bg-[#A989C8] hover:bg-[#9677b4] disabled:bg-gray-400 text-white font-bold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2"
               >
                 {isProcessing ? (
                   <>
@@ -235,8 +235,8 @@ export default function Payment({
         </div>
 
         {/* Right Column: Payment Summary */}
-        <div className="col-span-5">
-          <div className="bg-white p-8 rounded-2xl border border-gray-200 sticky top-6">
+        <div className="lg:col-span-5">
+          <div className="bg-white p-4 sm:p-8 rounded-2xl border border-gray-200 sticky top-6">
             <h3 className="text-lg font-bold text-gray-900 mb-6">Payment Summary</h3>
             
             {/* Breakdown */}

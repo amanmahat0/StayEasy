@@ -50,7 +50,7 @@ const Step5Images: React.FC<Props> = ({ formData, setFormData, existingImages, s
       </div>
 
       {existingImages && existingImages.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {(() => {
             const items: React.ReactNode[] = [];
             let shown = 0;
@@ -92,7 +92,7 @@ const Step5Images: React.FC<Props> = ({ formData, setFormData, existingImages, s
       )}
 
       <div
-        className="border-2 border-dashed border-gray-300 hover:border-[#A87DC2] rounded-2xl p-12 text-center cursor-pointer transition-colors bg-gray-50 hover:bg-[#A87DC2]/5"
+        className="border-2 border-dashed border-gray-300 hover:border-[#A87DC2] rounded-2xl p-8 sm:p-12 text-center cursor-pointer transition-colors bg-gray-50 hover:bg-[#A87DC2]/5"
         onClick={handleClick}
       >
         <Upload className="mx-auto text-[#A87DC2] mb-4" size={40} />
@@ -111,7 +111,7 @@ const Step5Images: React.FC<Props> = ({ formData, setFormData, existingImages, s
       {formData.images && formData.images.length > 0 && (
         <div>
           <p className="text-sm font-semibold text-gray-700 mb-3">{formData.images.length} new photo(s) selected</p>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {formData.images.map((file: File, index: number) => (
               <div key={index} className="border rounded-lg overflow-hidden relative group">
                 <img

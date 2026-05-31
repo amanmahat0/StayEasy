@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Bell, X, Check } from 'lucide-react';
+import { Bell, X, Check, Flag } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { Notification } from '../../services/notificationService';
 import notificationService from '../../services/notificationService';
 
@@ -12,6 +13,19 @@ export default function NotificationsDropdown({ onNotificationCountChange }: Not
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleNotificationClick = async (notification: Notification) => {
+    if (!notification.is_read) {
+      await handleMarkAsRead(notification.id);
+    }
+    if (notification.notification_type === 'admin_action') {
+      navigate('/dashboard');
+    } else if (notification.notification_type?.startsWith('agreement_')) {
+      navigate(`/agreements/${notification.related_entity_id || ''}`);
+    }
+    setIsOpen(false);
+  };
 
   // Fetch notifications
   const fetchNotifications = useCallback(async () => {
@@ -80,6 +94,18 @@ export default function NotificationsDropdown({ onNotificationCountChange }: Not
         return { icon: '💳', color: 'text-green-600', bgColor: 'bg-green-50' };
       case 'payment_failed':
         return { icon: '⚠️', color: 'text-red-600', bgColor: 'bg-red-50' };
+      case 'admin_action':
+        return { icon: '📢', color: 'text-yellow-600', bgColor: 'bg-yellow-50' };
+      case 'agreement_created':
+        return { icon: '📄', color: 'text-blue-600', bgColor: 'bg-blue-50' };
+      case 'agreement_tenant_signed':
+        return { icon: '✍️', color: 'text-purple-600', bgColor: 'bg-purple-50' };
+      case 'agreement_landlord_signed':
+        return { icon: '✍️', color: 'text-green-600', bgColor: 'bg-green-50' };
+      case 'agreement_activated':
+        return { icon: '✅', color: 'text-green-600', bgColor: 'bg-green-50' };
+      case 'agreement_expiring':
+        return { icon: '⏰', color: 'text-orange-600', bgColor: 'bg-orange-50' };
       default:
         return { icon: '📬', color: 'text-gray-600', bgColor: 'bg-gray-50' };
     }
@@ -145,12 +171,13 @@ export default function NotificationsDropdown({ onNotificationCountChange }: Not
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
-                {notifications.map((notification) => {
+                  {notifications.map((notification) => {
                   const style = getNotificationStyle(notification.notification_type);
                   return (
                     <div
                       key={notification.id}
-                      className={`p-4 hover:bg-gray-50 transition ${
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`p-4 hover:bg-gray-50 transition cursor-pointer ${
                         !notification.is_read ? 'bg-blue-50' : ''
                       }`}
                     >

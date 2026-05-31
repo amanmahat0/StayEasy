@@ -4,7 +4,8 @@ from django.contrib.auth.password_validation import validate_password
 import json
 from .models import (
     Profile, KYC, Property, PropertyImage, Booking, Favorite, ViewedProperty, 
-    LandlordUser, Chat, Message, CancellationPolicy, Payment, Refund, Cancellation, Notification
+    LandlordUser, Chat, Message, CancellationPolicy, Payment, Refund, Cancellation, Notification,
+    Warning, Suspension, ModerationAction, RentalAgreement,
 )
 
 
@@ -785,6 +786,99 @@ class CancellationPolicyInfoSerializer(serializers.Serializer):
 
 
 # =====================================================
+# MODERATION SERIALIZERS
+# =====================================================
+
+class WarningSerializer(serializers.ModelSerializer):
+    """Serializer for admin warnings"""
+    issued_by_name = serializers.SerializerMethodField()
+    reason_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Warning
+        fields = [
+            'id', 'user', 'issued_by', 'issued_by_name',
+            'reason', 'reason_display', 'custom_reason', 'message',
+            'is_read', 'created_at',
+        ]
+        read_only_fields = ['id', 'issued_by', 'created_at']
+
+    def get_issued_by_name(self, obj):
+        if obj.issued_by:
+            return f"{obj.issued_by.first_name} {obj.issued_by.last_name}".strip() or obj.issued_by.username
+        return "System"
+
+    def get_reason_display(self, obj):
+        return obj.get_reason_display()
+
+
+class WarningCreateSerializer(serializers.Serializer):
+    """Serializer for creating a warning"""
+    reason = serializers.ChoiceField(choices=Warning.WARNING_REASONS)
+    custom_reason = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    message = serializers.CharField()
+
+
+class SuspensionSerializer(serializers.ModelSerializer):
+    """Serializer for suspensions"""
+    issued_by_name = serializers.SerializerMethodField()
+    lifted_by_name = serializers.SerializerMethodField()
+    duration_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Suspension
+        fields = [
+            'id', 'user', 'issued_by', 'issued_by_name',
+            'reason', 'duration', 'duration_display', 'expires_at',
+            'is_active', 'lifted_at', 'lifted_by', 'lifted_by_name',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'issued_by', 'created_at', 'lifted_at', 'lifted_by']
+
+    def get_issued_by_name(self, obj):
+        if obj.issued_by:
+            return f"{obj.issued_by.first_name} {obj.issued_by.last_name}".strip() or obj.issued_by.username
+        return "System"
+
+    def get_lifted_by_name(self, obj):
+        if obj.lifted_by:
+            return f"{obj.lifted_by.first_name} {obj.lifted_by.last_name}".strip() or obj.lifted_by.username
+        return None
+
+    def get_duration_display(self, obj):
+        return obj.get_duration_display()
+
+
+class SuspensionCreateSerializer(serializers.Serializer):
+    """Serializer for creating a suspension"""
+    reason = serializers.CharField()
+    duration = serializers.ChoiceField(choices=Suspension.DURATION_CHOICES)
+
+
+class ModerationActionSerializer(serializers.ModelSerializer):
+    """Serializer for moderation audit log"""
+    admin_name = serializers.SerializerMethodField()
+    action_type_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ModerationAction
+        fields = [
+            'id', 'user', 'admin', 'admin_name',
+            'action_type', 'action_type_display', 'reason',
+            'details', 'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_admin_name(self, obj):
+        if obj.admin:
+            return f"{obj.admin.first_name} {obj.admin.last_name}".strip() or obj.admin.username
+        return "System"
+
+    def get_action_type_display(self, obj):
+        return obj.get_action_type_display()
+
+
+# =====================================================
 # NOTIFICATION SERIALIZERS
 # =====================================================
 class NotificationSerializer(serializers.ModelSerializer):
@@ -804,3 +898,68 @@ class NotificationSerializer(serializers.ModelSerializer):
             'created_at'
         ]
         read_only_fields = ['id', 'recipient', 'created_at']
+
+
+# =====================================================
+# RENTAL AGREEMENT SERIALIZERS
+# =====================================================
+class RentalAgreementSerializer(serializers.ModelSerializer):
+    """Serializer for rental agreements"""
+
+    class Meta:
+        model = RentalAgreement
+        fields = '__all__'
+        read_only_fields = [
+            'id', 'booking', 'property', 'tenant', 'landlord',
+            'agreement_content', 'monthly_rent', 'security_deposit',
+            'lease_duration_months', 'tenant_name', 'tenant_email',
+            'tenant_phone', 'tenant_citizenship', 'landlord_name',
+            'landlord_email', 'landlord_phone', 'landlord_kyc_verified',
+            'property_name', 'property_address', 'property_type',
+            'transaction_id', 'payment_date', 'amount_paid',
+            'tenant_signature', 'tenant_signed_at', 'tenant_ip_address',
+            'tenant_device_info', 'landlord_signature',
+            'landlord_signed_at', 'landlord_ip_address',
+            'landlord_device_info', 'agreement_pdf',
+            'created_at', 'updated_at',
+        ]
+
+
+class RentalAgreementListSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for listing agreements"""
+    tenant_name = serializers.CharField(read_only=True)
+    landlord_name = serializers.CharField(read_only=True)
+    property_name = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = RentalAgreement
+        fields = [
+            'id', 'status', 'monthly_rent', 'security_deposit',
+            'tenant_name', 'landlord_name', 'property_name',
+            'tenant_signed_at', 'landlord_signed_at',
+            'created_at', 'updated_at',
+        ]
+
+
+class TenantSignSerializer(serializers.Serializer):
+    """Serializer for tenant signature submission"""
+    signature = serializers.CharField(help_text="Base64 encoded signature image")
+    ip_address = serializers.CharField(required=False, allow_blank=True, default='')
+    device_info = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate_signature(self, value):
+        if not value.startswith('data:image/'):
+            raise serializers.ValidationError("Invalid signature format. Must be a base64 data URL.")
+        return value
+
+
+class LandlordSignSerializer(serializers.Serializer):
+    """Serializer for landlord signature submission"""
+    signature = serializers.CharField(help_text="Base64 encoded signature image")
+    ip_address = serializers.CharField(required=False, allow_blank=True, default='')
+    device_info = serializers.CharField(required=False, allow_blank=True, default='')
+
+    def validate_signature(self, value):
+        if not value.startswith('data:image/'):
+            raise serializers.ValidationError("Invalid signature format. Must be a base64 data URL.")
+        return value

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Home, Users, TrendingUp, ShieldCheck, Eye, Edit, Trash2, MessageCircle, Calendar, Mail, Phone, BookOpen, Heart, ArrowRight, Building2 } from "lucide-react";
+import { Plus, Home, Users, TrendingUp, ShieldCheck, Eye, Edit, Trash2, MessageCircle, Calendar, Mail, Phone, BookOpen, Heart, ArrowRight, Building2, Ban, Clock, Flag, FileText } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import PublicNavbar from "../../components/Navbar/PublicNavbar";
@@ -14,7 +14,7 @@ import RecentActivity from "../../components/Dashboard/RecentActivity";
 import ProfileCard from "../../components/Profile/ProfileCard";
 import chatService from "../../services/chatService";
 import { toConversationView } from "../../utils/chatUtils";
-import { getKYCStatus, getLandlordDashboard, deleteProperty, getUserBookings, getUserFavorites } from "../../services/api";
+import { getKYCStatus, getLandlordDashboard, deleteProperty, getUserBookings, getUserFavorites, getSuspensionStatus, getUserWarnings, markWarningRead } from "../../services/api";
 import API from "../../services/api";
 import type { ConversationView } from "../../type";
 
@@ -83,6 +83,8 @@ const Dashboard = () => {
   const [recentTenants, setRecentTenants] = useState<any[]>([]);
   const [userBookings, setUserBookings] = useState<any[]>([]);
   const [wishlistCount, setWishlistCount] = useState(0);
+  const [suspension, setSuspension] = useState<any>(null);
+  const [warnings, setWarnings] = useState<any[]>([]);
 
   const userType = user?.user_type || "tenant";
   const isOwner = userType === "owner";
@@ -106,6 +108,14 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Check suspension status
+        const suspData = await getSuspensionStatus();
+        setSuspension(suspData);
+        
+        // Get user warnings
+        const warnData = await getUserWarnings();
+        setWarnings(warnData.results || []);
+        
         if (isOwner) {
           const kycData = await getKYCStatus();
           setKyc(kycData);
@@ -143,17 +153,90 @@ const Dashboard = () => {
   return (
     <>
       <PublicNavbar />
-      <main className="min-h-screen py-8 font-inter">
-        <div className="max-w-7xl mx-auto px-6">
+      <main className="min-h-screen py-6 sm:py-8 font-inter">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
           {/* Header */}
           <div className="mb-6">
-            <h1 className="text-3xl font-bold font-poppins">
-              Welcome back, {fullName}! 👋
+            <h1 className="text-2xl sm:text-3xl font-bold font-poppins">
+              Welcome back, {fullName}!
             </h1>
-            <p className="text-gray-500 mt-1">
+            <p className="text-sm sm:text-base text-gray-500 mt-1">
               {isOwner ? "Manage your properties and tenants" : "Browse and manage your rentals"}
             </p>
           </div>
+
+          {/* Unread Warnings */}
+          {warnings.filter(w => !w.is_read).length > 0 && (
+            <div className="mb-6 space-y-2">
+              {warnings.filter(w => !w.is_read).map((w: any) => (
+                <div key={w.id} className="p-4 rounded-xl bg-yellow-50 border border-yellow-200 flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center shrink-0">
+                    <Flag size={16} className="text-yellow-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-yellow-800 text-sm">Warning: {w.reason_display}</h4>
+                        <p className="text-sm text-yellow-700 mt-0.5">{w.message}</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          try {
+                            await markWarningRead(w.id);
+                            setWarnings(prev => prev.map(x => x.id === w.id ? { ...x, is_read: true } : x));
+                          } catch (e) {}
+                        }}
+                        className="text-xs text-yellow-600 hover:text-yellow-800 font-medium shrink-0"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                    <p className="text-xs text-yellow-500 mt-1">
+                      By {w.issued_by_name} · {new Date(w.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Suspension Banner */}
+          {suspension?.is_suspended && suspension?.suspension && (
+            <div className="mb-6 p-4 sm:p-5 rounded-xl bg-red-50 border-2 border-red-200">
+              <div className="flex flex-col sm:flex-row items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <Ban size={24} className="text-red-500" />
+                </div>
+                <div className="flex-1 w-full">
+                  <h3 className="text-lg font-bold text-red-800">Account Suspended</h3>
+                  <p className="text-sm text-red-700 mt-1">{suspension.suspension.reason}</p>
+                  <div className="flex flex-wrap items-center gap-4 mt-3 text-xs text-red-600">
+                    <span className="inline-flex items-center gap-1">
+                      <Clock size={13} />
+                      Duration: {suspension.suspension.duration_display}
+                    </span>
+                    {suspension.suspension.expires_at && (
+                      <span className="inline-flex items-center gap-1">
+                        <Calendar size={13} />
+                        Expires: {new Date(suspension.suspension.expires_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-3 p-3 bg-red-100/50 rounded-lg">
+                    <p className="text-xs text-red-700 font-medium">
+                      While suspended, you cannot create bookings, list properties, edit listings, or make payments.
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href="mailto:support@stayeasy.com"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white text-sm font-bold rounded-lg hover:bg-red-600 transition-colors shrink-0"
+                >
+                  Contact Support
+                </a>
+              </div>
+            </div>
+          )}
 
           {isOwner ? (
             <>
@@ -177,25 +260,25 @@ const Dashboard = () => {
                       </div>
                     </div>
                   ) : kyc.status === "rejected" ? (
-                    <div className="flex items-start gap-3">
+                    <div className="flex flex-col sm:flex-row items-start gap-3">
                       <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" />
-                      <div>
+                      <div className="w-full">
                         <p className="font-bold">KYC Rejected</p>
                         <p className="text-sm mt-1">Your KYC verification was rejected. Please resubmit valid documents to add properties.</p>
                         <button onClick={() => navigate('/kyc')}
-                          className="mt-2 px-4 py-1.5 bg-yellow-200 hover:bg-yellow-300 text-yellow-900 rounded-lg text-sm font-medium transition">
+                          className="w-full sm:w-auto mt-2 px-4 py-1.5 bg-yellow-200 hover:bg-yellow-300 text-yellow-900 rounded-lg text-sm font-medium transition">
                           Resubmit KYC
                         </button>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-start gap-3">
+                    <div className="flex flex-col sm:flex-row items-start gap-3">
                       <ShieldCheck className="w-5 h-5 mt-0.5 shrink-0" />
-                      <div>
+                      <div className="w-full">
                         <p className="font-bold">KYC Not Submitted</p>
                         <p className="text-sm mt-1">You must submit KYC verification before adding properties.</p>
                         <button onClick={() => navigate('/kyc')}
-                          className="mt-2 px-4 py-1.5 bg-yellow-200 hover:bg-yellow-300 text-yellow-900 rounded-lg text-sm font-medium transition">
+                          className="w-full sm:w-auto mt-2 px-4 py-1.5 bg-yellow-200 hover:bg-yellow-300 text-yellow-900 rounded-lg text-sm font-medium transition">
                           Submit KYC
                         </button>
                       </div>
@@ -240,8 +323,8 @@ const Dashboard = () => {
                       </div>
                       {properties.map((property) => (
                         <div key={property.id} className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-lg transition-shadow">
-                          <div className="flex gap-4">
-                            <div className="w-32 h-32 bg-gray-100 rounded-lg overflow-hidden shrink-0">
+                          <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="w-full sm:w-32 h-40 sm:h-32 bg-gray-100 rounded-lg overflow-hidden shrink-0">
                               {property.images && property.images.length > 0 ? (
                                 <img src={`http://127.0.0.1:8000${property.images[0].image}`} alt={property.title} className="w-full h-full object-cover" />
                               ) : (
@@ -348,7 +431,7 @@ const Dashboard = () => {
                     <div className="space-y-3">
                       {userBookings.slice(0, 5).map((booking: any) => (
                         <div key={booking.id} className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md transition-shadow">
-                          <div className="flex items-center justify-between">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                             <div>
                               <h4 className="font-bold text-gray-900">{booking.property_title || `Property #${booking.property}`}</h4>
                               <p className="text-sm text-gray-500 mt-0.5">
@@ -373,7 +456,7 @@ const Dashboard = () => {
                   )}
 
                   {/* Quick Links */}
-                  <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                     <button onClick={() => navigate('/favorites')}
                       className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow text-left">
                       <Heart size={20} className="text-red-400 mb-2" />
@@ -385,6 +468,12 @@ const Dashboard = () => {
                       <MessageCircle size={20} className="text-[#A989C8] mb-2" />
                       <p className="font-bold text-gray-900">Messages</p>
                       <p className="text-xs text-gray-500">Chat with landlords</p>
+                    </button>
+                    <button onClick={() => navigate('/agreements')}
+                      className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-md transition-shadow text-left">
+                      <FileText size={20} className="text-[#A989C8] mb-2" />
+                      <p className="font-bold text-gray-900">Agreements</p>
+                      <p className="text-xs text-gray-500">View rental agreements</p>
                     </button>
                   </div>
                 </div>
