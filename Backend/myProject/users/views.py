@@ -1552,6 +1552,8 @@ class AdminLandlordListView(generics.ListAPIView):
         landlords_data = []
         
         for u in queryset:
+            kyc = KYC.objects.filter(user=u).first()
+            kyc_status = kyc.status if kyc else 'not_submitted'
             landlords_data.append({
                 'id': u.id,
                 'username': u.username,
@@ -1561,6 +1563,7 @@ class AdminLandlordListView(generics.ListAPIView):
                 'user_type': u.profile.user_type,
                 'role': u.profile.role,
                 'email_verified': u.profile.email_verified,
+                'kyc_status': kyc_status,
                 'date_joined': u.date_joined,
                 'properties_count': u.properties.count(),
                 'total_bookings': Booking.objects.filter(

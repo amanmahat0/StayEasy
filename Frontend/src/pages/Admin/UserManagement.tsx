@@ -12,6 +12,7 @@ interface User {
   user_type: string;
   role: string;
   email_verified: boolean;
+  kyc_status?: string;
   date_joined: string;
   bookings_count?: number;
   properties_count?: number;
@@ -81,7 +82,10 @@ const UserManagement = () => {
     );
   });
 
-  const verifiedCount = data.filter((u) => u.email_verified).length;
+  const isVerified = (u: User) =>
+    activeTab === "users" ? u.email_verified : u.kyc_status === "approved";
+
+  const verifiedCount = data.filter(isVerified).length;
   const unverifiedCount = data.length - verifiedCount;
 
   const getInitials = (first: string, last: string) => {
@@ -250,17 +254,23 @@ const UserManagement = () => {
                       {/* Status Badge */}
                       <span
                         className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold shrink-0 ${
-                          u.email_verified
+                          isVerified(u)
                             ? "bg-green-50 text-green-700 border border-green-200"
                             : "bg-yellow-50 text-yellow-700 border border-yellow-200"
                         }`}
                       >
-                        {u.email_verified ? (
+                        {isVerified(u) ? (
                           <ShieldCheck size={13} />
                         ) : (
                           <ShieldAlert size={13} />
                         )}
-                        {u.email_verified ? "Verified" : "Unverified"}
+                        {activeTab === "users"
+                          ? (isVerified(u) ? "Verified" : "Unverified")
+                          : (u.kyc_status === "approved" ? "KYC Verified"
+                            : u.kyc_status === "pending" ? "KYC Pending"
+                            : u.kyc_status === "not_submitted" ? "KYC Not Submitted"
+                            : "KYC Rejected")
+                        }
                       </span>
                     </div>
 
